@@ -2,8 +2,8 @@
 
 ## Now
 
-- A first proof of the connector: sign in for per-file access, then create, read and
-  write a sheet (https://github.com/shawncampbell/google-sheets-claude-connector/pull/3)
+- Run the install runbook against a real account and fix what it turns up
+  (https://github.com/shawncampbell/google-sheets-claude-connector/pull/4)
 
 ## Next
 

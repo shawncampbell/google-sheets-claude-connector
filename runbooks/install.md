@@ -14,7 +14,7 @@ Google account, and this repository (or your fork of it) on GitHub.
 
 **How to read this.** Each task gives its goal and how to verify it before any steps.
 Dashboards change, so the click-paths below are a guide; if a label has moved, search
-the dashboard for the name in bold and go by the goal. Only task F has been run so far.
+the dashboard for the name in bold and go by the goal. Tasks A and F have been run so far.
 When you run a task, update its `Verified:` line.
 
 **Never write a real value from these steps into this repository**: not the Worker's
@@ -39,15 +39,28 @@ is not set up yet", because task C has not been done.
 3. Let Cloudflare create the API token it offers, then deploy. The first deploy creates
    the KV namespace the Worker stores its data in; the token must be allowed to edit
    Workers KV Storage as well as Workers Scripts.
-4. Note the Worker's address. Tasks B and D need it.
+4. Leave preview builds off. In the Worker's **Settings → Build → Branch control**,
+   **Enable Preview Builds** should be clear, so that only the default branch deploys.
+   A preview build would publish every pushed branch, reviewed or not, at its own
+   public address with the same secrets and the same stored Google access as the real
+   one.
+5. Check which addresses are switched on. In the Worker's **Settings → Domains &
+   Routes**, the **workers.dev** address should be enabled and **Preview URLs** should
+   be disabled. On the first real install the workers.dev address was off and Preview
+   URLs were on, and both had to be changed by hand. A preview address serves older
+   and unreleased versions of the Worker with the same secrets, for the same reason
+   given in step 4.
+6. Note the Worker's address. Tasks B and D need it.
 
 Do not put Cloudflare Access in front of this Worker. Claude's servers call it
 directly, so it has to be reachable from the internet; it protects itself by requiring
 a Google sign-in.
 
 Sources: developers.cloudflare.com/workers/ci-cd/builds/ ;
-developers.cloudflare.com/workers/wrangler/configuration/ (Automatic provisioning)
-Verified: not executed.
+developers.cloudflare.com/workers/wrangler/configuration/ (Automatic provisioning,
+`workers_dev`, `preview_urls`)
+Verified: executed 2026-11-15 by the owner (one install), through step 5. The
+dashboard labels in step 5 are as the owner described them, not re-read in the docs.
 
 ## B. Create the Google app
 
