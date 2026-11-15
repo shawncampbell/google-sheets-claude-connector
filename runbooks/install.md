@@ -39,7 +39,12 @@ is not set up yet", because task C has not been done.
 3. Let Cloudflare create the API token it offers, then deploy. The first deploy creates
    the KV namespace the Worker stores its data in; the token must be allowed to edit
    Workers KV Storage as well as Workers Scripts.
-4. Note the Worker's address. Tasks B and D need it.
+4. Leave preview builds off. In the Worker's **Settings → Build → Branch control**,
+   **Enable Preview Builds** should be clear, so that only the default branch deploys.
+   A preview build would publish every pushed branch, reviewed or not, at its own
+   public address with the same secrets and the same stored Google access as the real
+   one.
+5. Note the Worker's address. Tasks B and D need it.
 
 Do not put Cloudflare Access in front of this Worker. Claude's servers call it
 directly, so it has to be reachable from the internet; it protects itself by requiring
