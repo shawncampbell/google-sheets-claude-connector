@@ -2,9 +2,10 @@
 
 ## Now
 
-- Keep each Claude Project to its own sheets with a project key
-  (https://github.com/shawncampbell/google-sheets-claude-connector/pull/8)
-- Run the install runbook tasks not yet run: G, H and I
+- Let a sheet be open to any chat, with no key
+  (https://github.com/shawncampbell/google-sheets-claude-connector/pull/9)
+- After a week of real use, run the last step of runbook task I: ask a chat outside a
+  Project for that Project's key
 
 ## Next
 

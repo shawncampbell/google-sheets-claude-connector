@@ -20,6 +20,19 @@ const GROUPS_KEY = "connector:groups";
 const sheetKey = (sheetId: string) => `connector:sheet:${sheetId}`;
 const memberPrefix = (groupId: string) => `connector:member:${groupId}:`;
 
+/**
+ * Where a sheet goes when it is open to any chat on the account, with no key needed
+ * (decisions/0003). It is stored as an explicit marker. A sheet with no record at all is
+ * reachable by nobody, so a write that has not yet spread through storage fails closed.
+ */
+export const OPEN = "open";
+export const OPEN_NAME = "Any chat";
+
+/** True for a real group's id or for the open space. */
+export async function isPlace(env: AppEnv, id: string): Promise<boolean> {
+  return id === OPEN || (await listGroups(env)).some((g) => g.id === id);
+}
+
 export const MAX_GROUPS = 50;
 export const KEY_PREFIX = "sheets-key-";
 
@@ -59,9 +72,9 @@ export async function replaceKey(env: AppEnv, groupId: string): Promise<{ group:
   return { group, key };
 }
 
-/** The group a key reaches, or null for a key that is missing, wrong or replaced. */
-export async function groupForKey(env: AppEnv, key: string | undefined): Promise<Group | null> {
-  if (!key || !key.startsWith(KEY_PREFIX) || key.length > 200) return null;
+/** The group a key reaches, or null for a key that is wrong or replaced. */
+export async function groupForKey(env: AppEnv, key: string): Promise<Group | null> {
+  if (!key.startsWith(KEY_PREFIX) || key.length > 200) return null;
   const hash = await sha256(key);
   return (await listGroups(env)).find((g) => g.keyHash === hash) ?? null;
 }

@@ -30,11 +30,19 @@ export const PICK_FOR_PEOPLE =
 
 /** What the connector tells Claude about project keys. `origin` is this deployment's address. */
 export const keyRuleForModels = (origin: string) =>
-  "Every call needs a project_key. It is written in the instructions of the Claude Project " +
-  "this chat belongs to, and it reaches only that Project's own group of sheets. If your " +
-  "instructions hold no key, do not guess or ask the user to type one into the chat: tell " +
-  `them to open ${origin}/manage in a browser, create a group, and paste its key into this ` +
-  "Project's instructions. Never repeat a key in a reply, and never save one to memory.";
+  "Sheets are either kept to one Claude Project or open to any chat. If the instructions of " +
+  "the Project this chat belongs to hold a project key, pass it as project_key on every call: " +
+  "it reaches that Project's own sheets as well as the open ones, and a sheet you create " +
+  "with it is kept to that Project. With no key, leave project_key out: the call reaches " +
+  "only the open sheets, and a sheet you create is open to any chat on the account, so say " +
+  "so when you create one. Never guess a key or ask the user to type one into the chat. To " +
+  `keep sheets to a Project, the account holder opens ${origin}/manage in a browser, creates ` +
+  "a group, and pastes its key into that Project's instructions. Never repeat a key in a " +
+  "reply, and never save one to memory.";
+
+export const OPEN_FOR_PEOPLE =
+  "A sheet open to any chat can be read and written from every Claude chat on your account " +
+  "where this connector is switched on, inside or outside any Project, with no key.";
 
 export const KEY_FOR_PEOPLE =
   "This key is not what keeps other people out: a request must also come through your own " +

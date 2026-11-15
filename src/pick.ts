@@ -1,7 +1,7 @@
 import type { AppEnv } from "./env";
 import { beginFlow, finishFlow, type PageResponse, postedFromThisSite } from "./flow";
 import { createSheetsApi, exchangePickCode, type Fetcher, GoogleError, googlePickUrl } from "./google";
-import { assignSheet, listGroups } from "./groups";
+import { assignSheet, isPlace, listGroups, OPEN, OPEN_NAME } from "./groups";
 import { messagePage, pickPage, pickResultPage, signInPage } from "./pages";
 import { hasOwnerSession } from "./session";
 import { getDeploymentOwner, getGoogleAccessToken } from "./store";
@@ -39,8 +39,8 @@ export async function startPick(request: Request, env: AppEnv): Promise<PageResp
   if (!postedFromThisSite(request)) return notFromHere;
   if (!(await hasOwnerSession(request, env))) return { status: 401, body: signInPage("/pick") };
   const groupId = String((await request.formData()).get("group") ?? "");
-  if (!(await listGroups(env)).some((g) => g.id === groupId)) {
-    return { status: 400, body: messagePage("Choose a group first", "Open the pick page and choose which group the sheets should join.") };
+  if (!(await isPlace(env, groupId))) {
+    return { status: 400, body: messagePage("Choose where the sheets go first", "Open the pick page and choose a group, or any chat.") };
   }
   const flow = await beginFlow(env, PICK_STATE_PREFIX, { groupId });
   return {
@@ -88,7 +88,8 @@ export async function finishPick(request: Request, env: AppEnv): Promise<PageRes
   }
 
   const owner = await getDeploymentOwner(env);
-  const group = (await listGroups(env)).find((g) => g.id === flow.data.groupId);
+  const openToAll = flow.data.groupId === OPEN;
+  const group = openToAll ? { id: OPEN, name: OPEN_NAME } : (await listGroups(env)).find((g) => g.id === flow.data.groupId);
   if (owner === null || !group) {
     return { status: 409, setCookies: clear, body: messagePage("That group no longer exists", "Open the pick page and start again.") };
   }
@@ -114,5 +115,5 @@ export async function finishPick(request: Request, env: AppEnv): Promise<PageRes
       notAdded += 1;
     }
   }
-  return { status: 200, setCookies: clear, body: pickResultPage(group.name, added, notAdded) };
+  return { status: 200, setCookies: clear, body: pickResultPage(group.name, added, notAdded, openToAll) };
 }

@@ -14,7 +14,7 @@ Google account, and this repository (or your fork of it) on GitHub.
 
 **How to read this.** Each task gives its goal and how to verify it before any steps.
 Dashboards change, so the click-paths below are a guide; if a label has moved, search
-the dashboard for the name in bold and go by the goal. Tasks A to F and H have been run so far. G was started. I has not been run.
+the dashboard for the name in bold and go by the goal. Every task has been run at least in part. Each **Verified** line says what is left.
 When you run a task, update its `Verified:` line.
 
 **Never write a real value from these steps into this repository**: not the Worker's
@@ -155,9 +155,8 @@ write a sheet, and cannot read a sheet it was not given.
 
 **Verify.** All four steps below end as described.
 
-Do task I first. Since project keys were added, the connector refuses every call that
-does not carry a key, so run these steps in a chat inside the Claude Project that holds
-one.
+Run these steps in an ordinary chat, outside any Claude Project. The sheet Claude
+creates is then open to any chat on your account, and Claude should tell you so.
 
 1. In a Claude chat with the connector switched on, ask Claude to create a sheet
    called "Connector test" and add three rows to it. Open the link Claude gives you:
@@ -225,9 +224,10 @@ record what it asked for.
 Sources: developers.google.com/identity/protocols/oauth2 (refresh token expiration) ;
 developers.google.com/identity/protocols/oauth2/production-readiness/brand-verification ;
 support.google.com/cloud/answer/15549049 (search summary only, not read directly)
-Verified: started 2026-11-15 by the owner. Publishing was refused with the message in
-step 2 while the three Branding fields were empty. Step 1 was written from Google's
-guidance afterwards and has not been executed.
+Verified: executed 2026-11-15 by the owner (one install): the app is published. The
+first attempt was refused with the message in step 2 while the Branding fields were
+empty. Whether Google asked for a review or proof of the domain was not reported, and
+the eight-day check in **Verify** has not had time to run.
 
 ## H. Hand over a sheet that already exists
 
@@ -271,7 +271,8 @@ connector. It cannot protect a group from the Project that holds it, and it is v
 in that Project's instructions and in the details of each tool call.
 
 **Goal.** One Claude Project can reach one group of sheets, and a chat anywhere else
-on your account reaches nothing.
+on your account cannot reach them. A chat with no key reaches only the sheets you
+opened to any chat.
 
 **Verify.** Step 5 is refused and step 4 succeeds.
 
@@ -283,14 +284,18 @@ on your account reaches nothing.
 4. In a chat inside that Project, ask Claude to create a sheet and add a row. It
    succeeds, and the sheet appears under the group's name on the `/manage` page.
 5. In a chat outside the Project, with the connector switched on, ask Claude to list
-   the sheets the connector can reach, and to read that sheet by its id. Both are
-   refused, and Claude sends you to the `/manage` page instead of asking for a key.
-6. Sheets made before groups existed are listed on `/manage` under **Sheets in no
-   group**. Add each to a group, or leave it out of reach.
-7. After a week of real use, ask a chat outside the Project what the Project's key is,
+   the sheets the connector can reach, and to read that sheet by its id. The list
+   does not include the sheet, and reading it is refused.
+6. On `/manage`, move a sheet to **Any chat**. The chat outside the Project can now
+   read it, with no key. Move it back to its group and it is refused again.
+7. Sheets made before groups existed are listed on `/manage` under **Not placed
+   anywhere**. Add each to a group or to Any chat, or leave it out of reach.
+8. After a week of real use, ask a chat outside the Project what the Project's key is,
    and ask it to search your past chats and memory for "sheets-key". If the key comes
    back, select **Replace this group's key** and record what happened in
    `decisions/0002`: that is the one part of the design not yet tested.
 
 Sources: this repository's `decisions/0002`
-Verified: not executed.
+Verified: executed 2026-11-15 by the owner (one install), steps 1 to 5 as they were
+before sheets could be opened to any chat; all went as expected. Step 6 is new and has
+not been executed. Step 8 needs a week of use and has not been run.

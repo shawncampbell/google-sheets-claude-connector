@@ -35,7 +35,8 @@ on, Claude is asked to read the Project's sheet and the server refuses.
 2. Each group has a key the server generates. The owner sees it once, on a page served
    by the Worker, and pastes it into the instructions of the Claude Project that should
    use that group. The server stores only a hash of it.
-3. Every tool call must carry a key. The server works only on sheets in that key's
+3. (Changed by `decisions/0003`, 2026-11-15: a call with no key now reaches the sheets
+   the owner opened to any chat, and only those.) Every tool call must carry a key. The server works only on sheets in that key's
    group and refuses everything else, including a request with no key.
 4. A sheet created through a call joins the group of the key that call carried. On the
    picker page the owner chooses which group a picked sheet joins.

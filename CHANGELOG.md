@@ -32,7 +32,15 @@ All notable changes to this project are recorded here. The format follows
   the connector asks Google for, what it stores, and what it does not. Google requires
   one before an app can leave testing.
 
+- Sheets open to any chat. On `/manage` and `/pick` a sheet can be placed under "Any
+  chat" instead of a group, and is then reachable from every chat on the account with
+  no key.
+
 ### Changed
+
+- A call with no project key is no longer refused. It reaches only the sheets open to
+  any chat, and a sheet it creates is open to any chat. A call with a wrong key is
+  still refused. Sheets not yet placed anywhere stay out of reach.
 
 - Every tool now refuses a call that carries no project key. After upgrading, create a
   group on `/manage` and paste its key into a Claude Project before using the

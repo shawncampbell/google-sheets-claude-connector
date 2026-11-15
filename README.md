@@ -18,8 +18,10 @@ copy and check it for yourself. The plan is in `ROADMAP.md` and the reasoning is
 - It cannot see any other file in your Google account.
 - It keeps each Claude Project to its own sheets. You create a group of sheets on the
   connector's `/manage` page and paste the group's key into one Project's
-  instructions. A chat without a key reaches nothing. The key tells your own Projects
-  apart; it cannot protect a group from the Project that holds it.
+  instructions. The key tells your own Projects apart; it cannot protect a group from
+  the Project that holds it.
+- A sheet can instead be open to any chat on your account, with no key. A chat without
+  a key reaches those sheets and nothing else.
 - It has no tool that deletes a sheet.
 
 **Read this before relying on the last point.** Google's per-file permission includes

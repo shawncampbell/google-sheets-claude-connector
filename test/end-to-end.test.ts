@@ -258,16 +258,11 @@ describe("connecting and using the connector, end to end", () => {
     const tools = ((await listed.json()) as { result: { tools: Array<{ name: string }> } }).result.tools;
     expect(tools.map((t) => t.name).sort()).toEqual(["append_rows", "create_sheet", "list_sheets", "read_sheet", "write_range"]);
 
-    const refused = await mcp({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "create_sheet", arguments: { title: "Reading log" } } });
-    const refusal = ((await refused.json()) as { result: { content: Array<{ text: string }>; isError?: boolean } }).result;
-    expect(refusal.isError).toBe(true);
-    expect(refusal.content[0]!.text).toContain("no valid project key");
-
     const { key } = await makeGroup((await ownerSession()).jar, "Reading");
     const created = await mcp({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "create_sheet", arguments: { project_key: key, title: "Reading log" } } });
     const result = ((await created.json()) as { result: { content: Array<{ text: string }>; isError?: boolean } }).result;
     expect(result.isError).toBeFalsy();
-    expect(JSON.parse(result.content[0]!.text)).toMatchObject({ spreadsheetId: "new-sheet-id-0123456789", group: "Reading" });
+    expect(JSON.parse(result.content[0]!.text)).toMatchObject({ spreadsheetId: "new-sheet-id-0123456789", kept_to: "Reading" });
     expect(googleCalls.at(-1)).toMatchObject({ url: "https://sheets.googleapis.com/v4/spreadsheets", authorization: "Bearer google-access-token" });
   });
 
@@ -335,7 +330,25 @@ describe("connecting and using the connector, end to end", () => {
       expect(fromB.isError).toBe(true);
       expect(fromB.text).toContain("cannot reach that sheet");
       const noKey = await call("read_sheet", { spreadsheet_id: made.spreadsheetId });
-      expect(noKey.text).toContain("no valid project key");
+      expect(noKey.isError).toBe(true);
+      expect(noKey.text).toContain("cannot reach that sheet");
+      expect(JSON.parse((await call("list_sheets", {})).text).sheets).toEqual([]);
+    });
+
+    it("lets a chat with no key use a sheet the owner opened to any chat, and nothing else", async () => {
+      const call = await claude();
+      const { jar } = await ownerSession();
+      const a = await makeGroup(jar, "Project A");
+      const made = JSON.parse((await call("create_sheet", { project_key: a.key, title: "A's log" })).text);
+      reachableSheets.set(made.spreadsheetId, "A's log");
+      expect((await call("read_sheet", { spreadsheet_id: made.spreadsheetId })).isError).toBe(true);
+
+      const manage = await (await send("/manage", { headers: { Cookie: cookieHeader(jar) } })).text();
+      expect(manage).toContain("Any chat");
+      const moved = await send("/manage/sheets", form(jar, { sheet: made.spreadsheetId, group: "open" }));
+      expect(moved.status).toBe(303);
+      expect((await call("read_sheet", { spreadsheet_id: made.spreadsheetId })).isError).toBe(false);
+      expect(JSON.parse((await call("list_sheets", {})).text).sheets[0]).toMatchObject({ title: "A's log", where: "Any chat" });
     });
 
     it("cuts off the old key when a group's key is replaced", async () => {
@@ -346,7 +359,7 @@ describe("connecting and using the connector, end to end", () => {
       const replaced = await (await send("/manage/key", form(jar, { group: groupId }))).text();
       const newKey = /sheets-key-[A-Za-z0-9_-]+/.exec(replaced)?.[0] ?? "";
       expect(newKey).not.toBe(key);
-      expect((await call("list_sheets", { project_key: key })).text).toContain("no valid project key");
+      expect((await call("list_sheets", { project_key: key })).text).toContain("project key is not valid");
       expect((await call("list_sheets", { project_key: newKey })).isError).toBe(false);
     });
 
@@ -403,6 +416,18 @@ describe("connecting and using the connector, end to end", () => {
       expect(html).toContain("Budget project");
       expect(html).toContain("not a limit Google enforces");
       expect((await call("read_sheet", { project_key: key, spreadsheet_id: "picked-sheet-id-0123456789" })).isError).toBe(false);
+    });
+
+    it("can add a picked sheet to any chat instead of a group", async () => {
+      const call = await claude();
+      const { jar } = await ownerSession();
+      const started = await send("/pick", form(jar, { group: "open", decision: "pick" }));
+      cookiesFrom(started, jar);
+      const state = new URL(started.headers.get("Location")!).searchParams.get("state")!;
+      reachableSheets.set("picked-sheet-id-0123456789", "Shared notes");
+      const html = await (await comeBack(state, jar, "code=pick-code&picked_file_ids=picked-sheet-id-0123456789")).text();
+      expect(html).toContain("from any chat on your account");
+      expect((await call("read_sheet", { spreadsheet_id: "picked-sheet-id-0123456789" })).isError).toBe(false);
     });
 
     it("reports a sheet picked with a different Google account as not added", async () => {
