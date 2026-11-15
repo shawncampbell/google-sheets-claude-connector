@@ -8,6 +8,10 @@
   "compatibility_date": "2026-11-01",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "keep_vars": true,
+  // Serve only on the Worker's workers.dev address. Preview addresses would serve
+  // older and unreleased versions with the same secrets, so they stay off.
+  "workers_dev": true,
+  "preview_urls": false,
   "kv_namespaces": [{ "binding": "OAUTH_KV" }],
   "observability": { "enabled": true }
 }
