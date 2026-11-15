@@ -5,12 +5,15 @@ only to the sheets you chose. Claude's own Google Drive connector can read every
 in your Drive. This one asks Google for per-file access, so it can reach a sheet only
 if it created that sheet or you picked it in Google's file picker.
 
-**Status: design stage.** Nothing here runs yet. The plan is in `ROADMAP.md` and the
-reasoning is in `decisions/`.
+**Status: a first proof, not yet run against a real Google account.** The code passes
+its own tests against a stand-in for Google. `runbooks/install.md` says how to deploy a
+copy and check it for yourself. The plan is in `ROADMAP.md` and the reasoning is in
+`decisions/`.
 
 ## What it will and will not do
 
-- It creates new sheets, reads sheets it was given, and writes to them.
+- It creates new sheets, reads them, and writes to them. Handing it a sheet that
+  already exists is the next step on the roadmap and does not work yet.
 - It cannot see any other file in your Google account.
 - It has no tool that deletes a sheet.
 
@@ -26,7 +29,13 @@ write to, which Google's version history can undo.
 One Cloudflare Worker that speaks the Model Context Protocol, added to Claude as a
 custom connector. You sign in with Google when you connect it, and the Worker keeps
 your Google access encrypted. You deploy your own copy; a shared hosted version is on
-the roadmap and is not available.
+the roadmap and is not available. Each copy serves one Google account: the first one to
+sign in.
+
+## Working on it
+
+`npm install`, then `npm test` and `npm run typecheck`. The tests replace Google with a
+stand-in, so they need no account and no network.
 
 ## Security
 

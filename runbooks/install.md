@@ -1,0 +1,176 @@
+# Runbook: deploy your own copy of the connector
+
+**Purpose.** Stand up one copy of the connector for one Google account, add it to
+Claude, and prove it can reach only the sheets it was given.
+
+**Before you rely on it, know its one soft limit.** This connector has no way to delete
+a sheet, and it never asks Google to delete one. That is a promise kept by this
+server's code, not a limit Google enforces: the permission you grant includes the right
+to delete the sheets it covers. Someone who stole this server's stored access could
+delete those sheets, and only those.
+
+**Prerequisites.** A Cloudflare account that holds nothing else you care about, a
+Google account, and this repository (or your fork of it) on GitHub.
+
+**How to read this.** Each task gives its goal and how to verify it before any steps.
+Dashboards change, so the click-paths below are a guide; if a label has moved, search
+the dashboard for the name in bold and go by the goal. Nobody has run these tasks yet.
+When you run one, update its `Verified:` line.
+
+**Never write a real value from these steps into this repository**: not the Worker's
+address, not a client id, not a sheet id. See `CLAUDE.md`.
+
+---
+
+## A. Deploy the Worker
+
+**Goal.** The Worker is live at an address of the form
+`https://<worker>.<subdomain>.workers.dev`, deployed by Cloudflare from this repository,
+with no Cloudflare credential stored in GitHub.
+
+**Verify.** Opening the Worker's address in a browser shows a page titled "Google
+Sheets connector". Opening the address followed by `/authorize` shows "This connector
+is not set up yet", because task C has not been done.
+
+1. In the Cloudflare dashboard, **Workers & Pages** → **Create application** → import
+   the repository from GitHub. Keep the project name the same as `name` in
+   `wrangler.jsonc`.
+2. Leave the build command empty and the deploy command as `npx wrangler deploy`.
+3. Let Cloudflare create the API token it offers, then deploy. The first deploy creates
+   the KV namespace the Worker stores its data in; the token must be allowed to edit
+   Workers KV Storage as well as Workers Scripts.
+4. Note the Worker's address. Tasks B and D need it.
+
+Do not put Cloudflare Access in front of this Worker. Claude's servers call it
+directly, so it has to be reachable from the internet; it protects itself by requiring
+a Google sign-in.
+
+Sources: developers.cloudflare.com/workers/ci-cd/builds/ ;
+developers.cloudflare.com/workers/wrangler/configuration/ (Automatic provisioning)
+Verified: not executed.
+
+## B. Create the Google app
+
+**Goal.** A Google Cloud project that holds one OAuth client for this connector and
+asks for per-file Drive access and nothing broader.
+
+**Verify.** In the Google Cloud console, **Google Auth Platform → Data Access** lists
+exactly two scopes, `openid` and `.../auth/drive.file`, and **Clients** lists one web
+client whose redirect address is your Worker's address followed by `/callback`.
+
+1. Create a new Google Cloud project used for nothing else.
+2. Enable two APIs in it: **Google Sheets API** and **Google Drive API**. The Drive API
+   is used only to list the sheets the connector can already reach.
+3. **Google Auth Platform → Branding**: give the app a name and your support email.
+   **Audience**: choose **External**, and add your own Google account under **Test
+   users**.
+4. **Data Access → Add or remove scopes**: add `openid` and
+   `https://www.googleapis.com/auth/drive.file`. Add nothing else.
+5. **Clients → Create client**: type **Web application**. Under **Authorized redirect
+   URIs** add your Worker's address followed by `/callback`. Create it, and keep the
+   client id and client secret for task C. Do not paste them anywhere else.
+
+Sources: developers.google.com/workspace/drive/api/guides/api-specific-auth ;
+developers.google.com/workspace/sheets/api/scopes ;
+developers.google.com/identity/protocols/oauth2
+Verified: not executed.
+
+## C. Give the Worker its three secrets
+
+**Goal.** The Worker holds the Google client id, the Google client secret, and a key
+it uses to encrypt every Google token before storing it.
+
+**Verify.** Opening the Worker's address followed by `/authorize` now shows "This
+sign-in link is not valid" instead of "This connector is not set up yet".
+
+1. Make an encryption key: 32 random bytes, base64 encoded. On a Mac or Linux
+   terminal, `openssl rand -base64 32` prints one.
+2. In the Cloudflare dashboard open the Worker → **Settings** → **Variables and
+   Secrets** → **Add**, and add three entries of type **Secret**:
+   `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `TOKEN_ENCRYPTION_KEY`.
+3. Deploy the change when the dashboard offers to.
+
+If you ever replace `TOKEN_ENCRYPTION_KEY`, the stored Google access can no longer be
+read, and you reconnect the connector in Claude to store it again.
+
+Sources: developers.cloudflare.com/workers/configuration/secrets/
+Verified: not executed.
+
+## D. Add the connector to Claude
+
+**Goal.** Claude lists the connector as connected, signed in with your Google account.
+
+**Verify.** Claude's connector settings show the connector with a **Disconnect**
+button, and your Google account's page of third-party connections lists your app with
+access described as only the specific Drive files you use with it.
+
+1. In Claude, open **Customize → Connectors** → **Add** → **Add custom connector**.
+2. Name it, and enter your Worker's address followed by `/mcp`. Keep the
+   authentication settings Claude detects.
+3. Select **Connect**. You see this connector's own page first, which states what it
+   can reach and the delete limit. Continue to Google and sign in.
+4. On Google's screen, leave the Drive permission ticked. If you untick it, the
+   connector refuses the sign-in and asks you to try again.
+
+The first Google account to sign in becomes the only account this deployment serves.
+A different account is refused from then on.
+
+Sources: claude.com/docs/connectors/custom/remote-mcp
+Verified: not executed.
+
+## E. Prove what it can and cannot reach
+
+**Goal.** Evidence, from your own account, that the connector can create, read and
+write a sheet, and cannot read a sheet it was not given.
+
+**Verify.** All four steps below end as described.
+
+1. In a Claude chat with the connector switched on, ask Claude to create a sheet
+   called "Connector test" and add three rows to it. Open the link Claude gives you:
+   the sheet exists in your Drive and holds the rows.
+2. Ask Claude to read the sheet back. It reports the same rows.
+3. Copy the id of some other sheet in your Drive from its address, and ask Claude to
+   read that id. Claude reports that the connector cannot reach that sheet.
+4. Ask Claude to delete "Connector test". Claude says it has no way to do that and
+   tells you to delete it in Google Sheets yourself.
+
+Sources: this repository's `src/tools.ts`
+Verified: not executed.
+
+## F. Test whether a Claude Project keeps its instructions to itself
+
+**Goal.** Find out whether text placed in one Claude Project's instructions can be
+seen from a chat outside that Project. `decisions/0002` depends on the answer, and
+this test needs no code.
+
+**Verify.** You can state, with the date, whether the phrase was or was not revealed.
+
+1. Create a Claude Project and put a made-up phrase in its instructions, for example a
+   sentence saying its key is three unrelated words of your choosing.
+2. In a chat inside the Project, ask what the key is. Claude should know it.
+3. In a new chat outside any Project, ask what the key in that Project is, and ask
+   Claude to search your past chats for it. Then try once more from inside a second
+   Project.
+4. If the phrase stays hidden in step 3, the assumption holds for now. If it is
+   revealed, record that in `decisions/0002`, which then falls back to approving each
+   call by hand.
+
+Sources: support.claude.com, "Use Claude's chat search and memory to build on previous
+context"
+Verified: not executed.
+
+## G. Before real use: take the Google app out of testing
+
+**Goal.** The connector's Google access no longer expires every seven days.
+
+**Verify.** **Google Auth Platform → Audience** shows the publishing status **In
+production**, and the connector still works eight days after you last signed in.
+
+1. **Google Auth Platform → Audience** → **Publish app**.
+2. Reconnect the connector in Claude so a lasting sign-in replaces the seven-day one.
+
+Whether Google asks for a review at this step, for an app that requests only these two
+scopes, has not been confirmed. If it does, stop and record what it asked for.
+
+Sources: developers.google.com/identity/protocols/oauth2 (refresh token expiration)
+Verified: not executed.

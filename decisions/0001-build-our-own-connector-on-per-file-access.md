@@ -75,6 +75,21 @@ The agent filled this in from the conversation; the owner should correct it.
    - **Deploy-sensitive files:** `wrangler.jsonc`, `package.json` scripts,
      `scripts/deploy.*`, anything under `.github/workflows/`, and `.devcontainer/*`.
 
+## Changes made while building the proof (2026-11-15)
+
+- **The sign-in also asks Google for `openid`.** The connector needs a stable way to
+  tell one Google account from another, and `openid` supplies an opaque account id and
+  nothing else: no email address, no name, no access to any data. Point 2 above
+  therefore reads "`drive.file` and `openid`".
+- **A deployment serves one Google account, the first to sign in.** Without this,
+  anyone who found a deployment's address could sign in with their own Google account
+  and use its quota. They could never reach the owner's sheets either way. A hosted
+  version would replace this rule.
+- **Cloudflare Access is not placed in front of the Worker.** The owner's standard for
+  a deployed app is Access restricted to one email. Claude's servers call this Worker
+  directly and cannot pass Access, so the Worker is public and protects itself with the
+  Google sign-in. This is a recorded exception to that standard.
+
 ## Alternatives set aside
 
 - **A second Google account that holds only shared sheets, used with the official
