@@ -439,6 +439,17 @@ describe("connecting and using the connector, end to end", () => {
     });
   });
 
+  it("serves a home page that says what it is and links to a privacy policy on the same site", async () => {
+    const home = await (await send("/")).text();
+    expect(home).toContain("holding access only to the");
+    expect(home).toContain('href="/privacy"');
+    const privacy = await send("/privacy");
+    expect(privacy.status).toBe(200);
+    const text = await privacy.text();
+    expect(text).toContain("does not store the contents of any sheet");
+    expect(text).toContain("not a limit Google enforces");
+  });
+
   it("refuses the connector endpoint without a token", async () => {
     const response = await send("/mcp", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
     expect(response.status).toBe(401);

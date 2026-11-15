@@ -14,7 +14,7 @@ Google account, and this repository (or your fork of it) on GitHub.
 
 **How to read this.** Each task gives its goal and how to verify it before any steps.
 Dashboards change, so the click-paths below are a guide; if a label has moved, search
-the dashboard for the name in bold and go by the goal. Tasks A to F have been run so far. H was started. G and I have not been run.
+the dashboard for the name in bold and go by the goal. Tasks A to F and H have been run so far. G was started. I has not been run.
 When you run a task, update its `Verified:` line.
 
 **Never write a real value from these steps into this repository**: not the Worker's
@@ -203,14 +203,31 @@ hold other notes about the first Project, which `decisions/0002` records.
 **Verify.** **Google Auth Platform → Audience** shows the publishing status **In
 production**, and the connector still works eight days after you last signed in.
 
-1. **Google Auth Platform → Audience** → **Publish app**.
-2. Reconnect the connector in Claude so a lasting sign-in replaces the seven-day one.
+1. **Google Auth Platform → Branding**. Google will not publish an app until three
+   things are filled in here, even though the page does not mark them as required
+   while the app is in testing:
+   - **Application home page**: your Worker's address.
+   - **Application privacy policy link**: your Worker's address followed by `/privacy`.
+     The connector serves that page, and the home page links to it.
+   - **Authorized domains**: the part of your Worker's address after the Worker's own
+     name, which has the form `<subdomain>.workers.dev`.
+   Check that **App name** is filled in too. Leave **App logo** empty: Google says an
+   app with a logo must be submitted for verification once it leaves testing. The
+   terms of service link is optional.
+2. Save, then go to **Audience** → **Publish app**. Without step 1 Google answers "To
+   publish your app, you must complete your configuration on the Branding page".
+3. Reconnect the connector in Claude so a lasting sign-in replaces the seven-day one.
 
-Whether Google asks for a review at this step, for an app that requests only these two
-scopes, has not been confirmed. If it does, stop and record what it asked for.
+Whether Google then asks for a review, or for proof that you own the domain, for an
+app that requests only these two scopes, has not been confirmed. If it does, stop and
+record what it asked for.
 
-Sources: developers.google.com/identity/protocols/oauth2 (refresh token expiration)
-Verified: not executed.
+Sources: developers.google.com/identity/protocols/oauth2 (refresh token expiration) ;
+developers.google.com/identity/protocols/oauth2/production-readiness/brand-verification ;
+support.google.com/cloud/answer/15549049 (search summary only, not read directly)
+Verified: started 2026-11-15 by the owner. Publishing was refused with the message in
+step 2 while the three Branding fields were empty. Step 1 was written from Google's
+guidance afterwards and has not been executed.
 
 ## H. Hand over a sheet that already exists
 
@@ -242,9 +259,9 @@ Claude afterwards. Whether Google offers a way to take back one sheet has not be
 checked.
 
 Sources: developers.google.com/workspace/drive/picker/guides/overview-desktop
-Verified: started 2026-11-15 by the owner, before groups existed: Google's picker
-appeared, and did so without the Google Picker API enabled. The outcome of the later
-steps was not reported, and the group steps have not been executed.
+Verified: executed 2026-11-15 by the owner (one install), before groups existed. It
+worked as described, and without the Google Picker API enabled. The group steps (1,
+and choosing a group in 2) have not been executed.
 
 ## I. Give a Claude Project its own sheets
 

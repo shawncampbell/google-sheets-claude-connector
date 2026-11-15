@@ -80,9 +80,54 @@ export function homePage(): string {
     "Google Sheets connector",
     `<p>This address is a connector for Claude. Add it in Claude's connector settings as a
 custom connector, using this address followed by <code>/mcp</code>.</p>
+<p>It lets Claude create, read and write Google Sheets while holding access only to the
+sheets you chose, instead of your whole Google Drive.</p>
 <p>Once it is connected, <a href="/manage">create a group and its key</a> for each Claude
 Project that should use it, and <a href="/pick">give it a sheet that already exists</a>.</p>
-${WHAT_IT_CAN_REACH}`,
+${WHAT_IT_CAN_REACH}
+<p><a href="/privacy">Privacy policy</a></p>`,
+  );
+}
+
+/** What this copy of the connector does with data. Keep it true: change it when storage changes. */
+export function privacyPage(): string {
+  return page(
+    "Privacy policy",
+    `<p>This is one person's own copy of an open-source connector between Claude and Google
+Sheets. It is run by whoever deployed it, for their own Google account. This page describes
+what this copy does with data.</p>
+<h2>What it asks Google for</h2>
+<ul>
+  <li>An opaque account id, to tell one Google account from another. It does not ask for
+  your name, email address or profile.</li>
+  <li>Access to only the specific Google Drive files you use with it: sheets it created and
+  sheets you picked for it.</li>
+</ul>
+<h2>What it stores</h2>
+<ul>
+  <li>The Google access it was granted, encrypted under a key held by the person who runs
+  this copy.</li>
+  <li>The opaque Google account id.</li>
+  <li>The names you give to groups of sheets, which sheet belongs to which group, and a
+  fingerprint of each group's key. The keys themselves are not stored.</li>
+  <li>Short-lived records of sign-ins in progress.</li>
+</ul>
+<p>It does not store the contents of any sheet. Cells you read or write pass through it
+on their way between Google and Claude and are not kept.</p>
+<h2>How Google data is used</h2>
+<p>Data from Google is used only to do what you ask through Claude: create, list, read and
+write the sheets you chose. It is sent to Claude as the answer to those requests and to
+nobody else. It is not sold, not used for advertising, and not used to train any model by
+this connector. Nobody reads it except as needed to keep this copy working or as the law
+requires.</p>
+<h2>Who else handles it</h2>
+<p>This copy runs on Cloudflare, which keeps request logs for the person who runs it.
+What Claude does with the data it receives is covered by Anthropic's own policies.</p>
+<h2>Taking access back</h2>
+<p>Remove the connector in Claude's settings, and remove its access in your Google
+account's settings for third-party connections. After that it can reach none of your
+files.</p>
+${DELETE_LIMIT_BLOCK}`,
   );
 }
 

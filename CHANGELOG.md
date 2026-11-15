@@ -28,6 +28,10 @@ All notable changes to this project are recorded here. The format follows
   so a sheet given to one Claude Project stays out of reach of other chats. Not yet
   run against a real account.
 
+- A privacy policy page at `/privacy`, linked from the home page, saying what a copy of
+  the connector asks Google for, what it stores, and what it does not. Google requires
+  one before an app can leave testing.
+
 ### Changed
 
 - Every tool now refuses a call that carries no project key. After upgrading, create a

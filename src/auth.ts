@@ -1,7 +1,7 @@
 import { AuthorizationError, authorizationErrorRedirect } from "@cloudflare/workers-oauth-provider";
 import type { AppEnv, AuthProps } from "./env";
 import { exchangeCode, GoogleError, googleAuthorizeUrl } from "./google";
-import { consentPage, homePage, htmlHeaders, messagePage } from "./pages";
+import { consentPage, homePage, htmlHeaders, messagePage, privacyPage } from "./pages";
 import type { PageResponse } from "./flow";
 import { addGroup, newKey, placeSheet, showManage } from "./manage";
 import { finishPick, PICK_STATE_PREFIX, showPick, startPick } from "./pick";
@@ -129,6 +129,7 @@ export const authHandler = {
     const { pathname } = new URL(request.url);
     try {
       if (pathname === "/" && request.method === "GET") return html(homePage());
+      if (pathname === "/privacy" && request.method === "GET") return html(privacyPage());
       const ownPage = pathname === "/pick" || pathname === "/manage" || pathname.startsWith("/manage/");
       if (pathname === "/authorize" || pathname === "/callback" || ownPage) {
         if (!isConfigured(env)) {
