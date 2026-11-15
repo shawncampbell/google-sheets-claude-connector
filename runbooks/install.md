@@ -30,27 +30,35 @@ with no Cloudflare credential stored in GitHub.
 
 **Verify.** Opening the Worker's address in a browser shows a page titled "Google
 Sheets connector". Opening the address followed by `/authorize` shows "This connector
-is not set up yet", because task C has not been done.
+is not set up yet", because task C has not been done. After the next merge to the
+default branch, the Worker's build history shows a new build without anyone starting
+it.
 
-1. In the Cloudflare dashboard, **Workers & Pages** → **Create application** → import
+1. Give Cloudflare's GitHub app access to this repository. In GitHub, open your
+   **Settings → Applications → Cloudflare Workers and Pages → Configure**. If it is
+   set to **Only select repositories**, add this repository to the list. Without this,
+   Cloudflare is never told about a push: the first deploy can still succeed, and then
+   no later merge builds anything, with no error shown anywhere.
+2. In the Cloudflare dashboard, **Workers & Pages** → **Create application** → import
    the repository from GitHub. Keep the project name the same as `name` in
    `wrangler.jsonc`.
-2. Leave the build command empty and the deploy command as `npx wrangler deploy`.
-3. Let Cloudflare create the API token it offers, then deploy. The first deploy creates
+3. Leave the build command empty and the deploy command as `npx wrangler deploy`.
+4. Let Cloudflare create the API token it offers, then deploy. The first deploy creates
    the KV namespace the Worker stores its data in; the token must be allowed to edit
    Workers KV Storage as well as Workers Scripts.
-4. Leave preview builds off. In the Worker's **Settings → Build → Branch control**,
+5. Leave preview builds off. In the Worker's **Settings → Build → Branch control**,
    **Enable Preview Builds** should be clear, so that only the default branch deploys.
    A preview build would publish every pushed branch, reviewed or not, at its own
    public address with the same secrets and the same stored Google access as the real
    one.
-5. Check which addresses are switched on. In the Worker's **Settings → Domains &
+6. Check which addresses are switched on. In the Worker's **Settings → Domains &
    Routes**, the **workers.dev** address should be enabled and **Preview URLs** should
-   be disabled. On the first real install the workers.dev address was off and Preview
-   URLs were on, and both had to be changed by hand. A preview address serves older
+   be disabled. `wrangler.jsonc` sets both on every deploy, so this is a check and
+   should need no change. On the first real install, before the configuration set
+   them, the workers.dev address was off and Preview URLs were on. A preview address serves older
    and unreleased versions of the Worker with the same secrets, for the same reason
-   given in step 4.
-6. Note the Worker's address. Tasks B and D need it.
+   given in step 5.
+7. Note the Worker's address. Tasks B and D need it.
 
 Do not put Cloudflare Access in front of this Worker. Claude's servers call it
 directly, so it has to be reachable from the internet; it protects itself by requiring
@@ -59,8 +67,9 @@ a Google sign-in.
 Sources: developers.cloudflare.com/workers/ci-cd/builds/ ;
 developers.cloudflare.com/workers/wrangler/configuration/ (Automatic provisioning,
 `workers_dev`, `preview_urls`)
-Verified: executed 2026-11-15 by the owner (one install), through step 5. The
-dashboard labels in step 5 are as the owner described them, not re-read in the docs.
+Verified: executed 2026-11-15 by the owner (one install). Step 1 was missed the first
+time, and merges did not build until it was done. The dashboard and GitHub labels in
+steps 1 and 6 are as the owner described them, not re-read in the docs.
 
 ## B. Create the Google app
 

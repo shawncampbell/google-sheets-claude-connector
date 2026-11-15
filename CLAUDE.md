@@ -22,6 +22,10 @@ deleted. Rules for any session working here:
   follow `SECURITY.md`. Do not try to hide it with a further commit.
 - Instance settings live in the Cloudflare dashboard and in `.dev.vars`, which is
   ignored by git. Nothing that identifies one deployment belongs in the repo.
+- One exception is accepted by the owner (2026-11-15): the tool that opens pull
+  requests adds a footer linking to the Claude session that wrote them. The link opens
+  only for the owner and holds nothing private. Leave it in place, and do not add
+  session links anywhere else.
 
 ## The delete limit must be stated wherever someone relies on it
 
