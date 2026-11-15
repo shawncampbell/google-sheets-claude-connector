@@ -1,5 +1,6 @@
 import type { ConsentDescription } from "@cloudflare/workers-oauth-provider";
-import { DELETE_LIMIT_FOR_PEOPLE, instructionsSnippet, KEY_FOR_PEOPLE, PICK_FOR_PEOPLE } from "./statement";
+import { OPEN, OPEN_NAME } from "./groups";
+import { DELETE_LIMIT_FOR_PEOPLE, instructionsSnippet, KEY_FOR_PEOPLE, OPEN_FOR_PEOPLE, PICK_FOR_PEOPLE } from "./statement";
 
 const escape = (value: string) => value.replace(/[&<>"']/g, (char) => `&#${char.charCodeAt(0)};`);
 
@@ -137,8 +138,9 @@ export function messagePage(title: string, message: string): string {
 
 type GroupChoice = { id: string; name: string };
 
+/** Every place a sheet can go: each group, then the open space, which is never the default when a group exists. */
 const groupSelect = (groups: GroupChoice[]) =>
-  `<select name="group" required>${groups.map((g) => `<option value="${escape(g.id)}">${escape(g.name)}</option>`).join("")}</select>`;
+  `<select name="group" required>${groups.map((g) => `<option value="${escape(g.id)}">${escape(g.name)}</option>`).join("")}<option value="${OPEN}">${OPEN_NAME} (no key)</option></select>`;
 
 export function signInPage(returnTo: string): string {
   return page(
@@ -153,13 +155,11 @@ Google only who you are. It grants nothing new.</p>
 }
 
 export function pickPage(groups: GroupChoice[]): string {
-  const form = groups.length
-    ? `<form method="post">
-  <p><label>Add the sheets to this group: ${groupSelect(groups)}</label></p>
+  const form = `<form method="post">
+  <p><label>Add the sheets to: ${groupSelect(groups)}</label></p>
+  <p>${escape(OPEN_FOR_PEOPLE)} A sheet added to a group can be reached only with that group's key.</p>
   <p><button name="decision" value="pick">Choose sheets in Google</button></p>
-</form>`
-    : `<p><strong>Create a group first.</strong> A picked sheet has to join a group, and you have
-none yet. <a href="/manage">Create one</a>, then come back.</p>`;
+</form>`;
   return page(
     "Give the connector an existing sheet",
     `<p>${escape(PICK_FOR_PEOPLE)}</p>
@@ -172,10 +172,11 @@ ${form}`,
   );
 }
 
-export function pickResultPage(groupName: string, added: string[], notAdded: number): string {
+export function pickResultPage(groupName: string, added: string[], notAdded: number, openToAll = false): string {
   const list = added.length
-    ? `<p>The connector can now read and write these, from the Claude Project that holds the key for
-<strong>${escape(groupName)}</strong>:</p><ul>${added.map((title) => `<li>${escape(title)}</li>`).join("")}</ul>`
+    ? `<p>The connector can now read and write these, ${
+        openToAll ? "<strong>from any chat on your account</strong>" : `from the Claude Project that holds the key for <strong>${escape(groupName)}</strong>`
+      }:</p><ul>${added.map((title) => `<li>${escape(title)}</li>`).join("")}</ul>`
     : "<p>No sheet was added.</p>";
   const failed = notAdded
     ? `<p><strong>${notAdded} picked ${notAdded === 1 ? "file was" : "files were"} not added.</strong> This happens when
@@ -194,15 +195,14 @@ type SheetRow = { spreadsheetId: string; title: string };
 
 export function managePage(input: {
   groups: Array<GroupChoice & { sheets: SheetRow[] }>;
+  open: SheetRow[];
   unplaced: SheetRow[];
   googleFailed: boolean;
   canAddGroup: boolean;
 }): string {
   const move = (sheet: SheetRow, label: string) =>
-    input.groups.length
-      ? `<form method="post" action="/manage/sheets"><input type="hidden" name="sheet" value="${escape(sheet.spreadsheetId)}">
-${escape(sheet.title)} ${groupSelect(input.groups)}<button>${label}</button></form>`
-      : escape(sheet.title);
+    `<form method="post" action="/manage/sheets"><input type="hidden" name="sheet" value="${escape(sheet.spreadsheetId)}">
+${escape(sheet.title)} ${groupSelect(input.groups)}<button>${label}</button></form>`;
   const groups = input.groups
     .map(
       (g) => `<section><h2>${escape(g.name)}</h2>
@@ -211,19 +211,23 @@ ${g.sheets.length ? `<ul>${g.sheets.map((s) => `<li>${move(s, "Move")}</li>`).jo
 <button>Replace this group's key</button> Every chat holding the old key is cut off.</form></section>`,
     )
     .join("");
+  const open = `<section><h2>${OPEN_NAME}</h2>
+<p>${escape(OPEN_FOR_PEOPLE)} A sheet Claude creates in a chat with no key lands here.</p>
+${input.open.length ? `<ul>${input.open.map((s) => `<li>${move(s, "Move")}</li>`).join("")}</ul>` : "<p>No sheets are open to any chat.</p>"}</section>`;
   const unplaced = input.unplaced.length
-    ? `<section><h2>Sheets in no group</h2>
-<p>No Claude Project can reach these until you put them in a group.</p>
+    ? `<section><h2>Not placed anywhere</h2>
+<p>No chat can reach these until you put them in a group or open them to any chat.</p>
 <ul>${input.unplaced.map((s) => `<li>${move(s, "Add")}</li>`).join("")}</ul></section>`
     : "";
   return page(
     "Groups and keys",
     `<p>Each group holds some sheets and has one key. Paste a group's key into the instructions
 of one Claude Project, and chats in that Project can reach that group's sheets and no others.
-A chat with no key reaches nothing.</p>
+A chat with no key reaches only the sheets under ${OPEN_NAME}.</p>
 ${DELETE_LIMIT_BLOCK}
 ${input.googleFailed ? "<p><strong>Google could not be reached, so sheets are not listed.</strong> Try again in a moment.</p>" : ""}
 ${groups || "<p>You have no groups yet.</p>"}
+${open}
 ${unplaced}
 <section><h2>Add a group</h2>
 ${

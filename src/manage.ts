@@ -1,7 +1,7 @@
 import type { AppEnv } from "./env";
 import { type PageResponse, postedFromThisSite } from "./flow";
 import { createSheetsApi, type Fetcher } from "./google";
-import { assignSheet, cleanGroupName, createGroup, groupOfSheet, listGroups, MAX_GROUPS, replaceKey } from "./groups";
+import { assignSheet, cleanGroupName, createGroup, groupOfSheet, isPlace, listGroups, MAX_GROUPS, OPEN, replaceKey } from "./groups";
 import { keyPage, managePage, messagePage, signInPage } from "./pages";
 import { hasOwnerSession } from "./session";
 import { getDeploymentOwner, getGoogleAccessToken } from "./store";
@@ -42,7 +42,8 @@ export async function showManage(request: Request, env: AppEnv): Promise<PageRes
     status: 200,
     body: managePage({
       groups: groups.map((g) => ({ id: g.id, name: g.name, sheets: placed.filter((s) => s.groupId === g.id) })),
-      unplaced: placed.filter((s) => s.groupId === null || !groups.some((g) => g.id === s.groupId)),
+      open: placed.filter((s) => s.groupId === OPEN),
+      unplaced: placed.filter((s) => s.groupId !== OPEN && !groups.some((g) => g.id === s.groupId)),
       googleFailed,
       canAddGroup: groups.length < MAX_GROUPS,
     }),
@@ -76,7 +77,7 @@ export async function placeSheet(request: Request, env: AppEnv): Promise<PageRes
   const form = await request.formData();
   const sheetId = String(form.get("sheet") ?? "");
   const groupId = String(form.get("group") ?? "");
-  if (SHEET_ID.test(sheetId) && (await listGroups(env)).some((g) => g.id === groupId)) {
+  if (SHEET_ID.test(sheetId) && (await isPlace(env, groupId))) {
     await assignSheet(env, sheetId, groupId);
   }
   return back;

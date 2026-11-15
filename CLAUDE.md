@@ -47,6 +47,10 @@ it. Wherever a key is shown or explained, say so, and never describe a key as a
 password or as security against outsiders. Never write a real key anywhere in this
 repository; examples use an obvious placeholder.
 
+A sheet under "Any chat" needs no key and is reachable from every chat on the account
+(`decisions/0003`). Wherever a person chooses where a sheet goes, say that plainly
+beside the choice, and never make Any chat the first choice when a group exists.
+
 ## Conventions every project repo carries
 
 This section is copied from `conventions.md` in the owner's protocols repo, which is
