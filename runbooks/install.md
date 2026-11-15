@@ -14,8 +14,8 @@ Google account, and this repository (or your fork of it) on GitHub.
 
 **How to read this.** Each task gives its goal and how to verify it before any steps.
 Dashboards change, so the click-paths below are a guide; if a label has moved, search
-the dashboard for the name in bold and go by the goal. Nobody has run these tasks yet.
-When you run one, update its `Verified:` line.
+the dashboard for the name in bold and go by the goal. Only task F has been run so far.
+When you run a task, update its `Verified:` line.
 
 **Never write a real value from these steps into this repository**: not the Worker's
 address, not a client id, not a sheet id. See `CLAUDE.md`.
@@ -157,7 +157,9 @@ this test needs no code.
 
 Sources: support.claude.com, "Use Claude's chat search and memory to build on previous
 context"
-Verified: not executed.
+Verified: executed 2026-11-15 by the owner, from a chat outside any Project only. The
+phrase stayed hidden. That chat did hold other notes about the Project, which
+`decisions/0002` records. The check from inside a second Project was not reported.
 
 ## G. Before real use: take the Google app out of testing
 

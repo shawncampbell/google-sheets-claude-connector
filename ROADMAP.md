@@ -2,8 +2,8 @@
 
 ## Now
 
-- Add the build and deploy configuration the proof needs, in its own PR
-  (https://github.com/shawncampbell/google-sheets-claude-connector/pull/2)
+- A first proof of the connector: sign in for per-file access, then create, read and
+  write a sheet (https://github.com/shawncampbell/google-sheets-claude-connector/pull/3)
 
 ## Next
 
