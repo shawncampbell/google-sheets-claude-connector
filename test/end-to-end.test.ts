@@ -145,6 +145,8 @@ describe("connecting and using the connector, end to end", () => {
     expect(consentHtml).toContain("not a limit Google enforces");
     expect(consentHtml).toContain("claude.example");
     expect(consent.headers.get("X-Frame-Options")).toBe("DENY");
+    // Chromium blocks the redirect to Google after the form post unless Google is named here.
+    expect(consent.headers.get("Content-Security-Policy")).toContain("form-action 'self' https://accounts.google.com");
   });
 
   it("sends the person to Google asking only for per-file access", async () => {

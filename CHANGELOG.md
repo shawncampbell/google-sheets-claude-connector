@@ -22,4 +22,8 @@ All notable changes to this project are recorded here. The format follows
 
 ### Fixed
 
+- Connecting in Chrome stopped at the connector's own page: pressing Continue did
+  nothing, and pressing it again showed "This authorization was not started in this
+  browser". A security header on that page was blocking the hop to Google's sign-in.
+
 ### Removed

@@ -28,7 +28,12 @@ ${body}
 export const htmlHeaders = (headers = new Headers()): Headers => {
   headers.set("Content-Type", "text/html; charset=utf-8");
   headers.set("Cache-Control", "no-store");
-  headers.set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'");
+  // form-action must name Google as well as this site. Chromium applies it to the
+  // redirect that follows a form post, and blocks the hop to Google's sign-in without it.
+  headers.set(
+    "Content-Security-Policy",
+    "default-src 'none'; style-src 'unsafe-inline'; form-action 'self' https://accounts.google.com; frame-ancestors 'none'",
+  );
   headers.set("X-Frame-Options", "DENY");
   return headers;
 };
