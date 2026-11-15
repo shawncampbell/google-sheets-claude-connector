@@ -1,19 +1,27 @@
 /**
- * Which structural changes Claude may ask Google for (decisions/0005). Google offers
- * them all through one method that takes a list of requests, each named by its one key.
- * A request is passed on only if its name is on this list. A name Google adds later is
- * refused until someone adds it here on purpose.
+ * Which changes Claude may ask Google for inside a spreadsheet (decisions/0005). Google
+ * offers them all through one method that takes a list of requests, each named by its
+ * one key. A request is passed on only if its name is on this list.
  *
- * Left out on purpose, because each removes a tab or rows of the owner's data, or changes
- * the file itself: deleteSheet, deleteDimension, deleteRange, deleteDuplicates,
- * updateSpreadsheetProperties. Do not add one without a decision record.
+ * The list is not there to stop Claude removing things. Removing a tab or rows is
+ * allowed, because overwriting cells could always do as much damage and Google's version
+ * history undoes both. What the list does is keep out kinds of request nobody has looked
+ * at, such as ones Google adds later or ones that connect a sheet to outside data.
+ *
+ * Nothing this method offers can delete, share or move the spreadsheet file itself.
  */
 export const ALLOWED_STRUCTURE_REQUESTS: ReadonlySet<string> = new Set([
   // Tabs
   "addSheet",
   "duplicateSheet",
   "updateSheetProperties",
-  // Rows, columns and cells: adding, moving and sizing, never removing
+  "deleteSheet",
+  // The file's own title, locale and time zone
+  "updateSpreadsheetProperties",
+  // Rows, columns and ranges
+  "deleteDimension",
+  "deleteRange",
+  "deleteDuplicates",
   "insertDimension",
   "appendDimension",
   "insertRange",
@@ -66,9 +74,13 @@ export const ALLOWED_STRUCTURE_REQUESTS: ReadonlySet<string> = new Set([
   "updateEmbeddedObjectPosition",
   "updateEmbeddedObjectBorder",
   "deleteEmbeddedObject",
+  "addSlicer",
+  "updateSlicerSpec",
+  // Tables
+  "addTable",
+  "updateTable",
+  "deleteTable",
 ]);
-
-export const REFUSED_STRUCTURE_REQUESTS = ["deleteSheet", "deleteDimension", "deleteRange", "deleteDuplicates", "updateSpreadsheetProperties"];
 
 /** The reason a list of requests cannot be sent, or null when every one is allowed. */
 export function whyNotAllowed(requests: unknown[]): string | null {
@@ -80,10 +92,7 @@ export function whyNotAllowed(requests: unknown[]): string | null {
     if (names.length !== 1) return `Request ${index + 1} must have exactly one key, naming the kind of change.`;
     const name = names[0]!;
     if (!ALLOWED_STRUCTURE_REQUESTS.has(name)) {
-      return REFUSED_STRUCTURE_REQUESTS.includes(name)
-        ? `Request ${index + 1} is "${name}", which this connector never does: it removes a tab or rows of data, or changes the file itself. ` +
-            "Tell the user to do that in Google Sheets themselves. Nothing was changed."
-        : `Request ${index + 1} is "${name}", which this connector does not pass on. Nothing was changed.`;
+      return `Request ${index + 1} is "${name}", which this connector does not pass on. Nothing was changed.`;
     }
   }
   return null;

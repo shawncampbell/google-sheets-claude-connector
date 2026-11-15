@@ -4,7 +4,8 @@
 Claude, and prove it can reach only the sheets it was given.
 
 **Before you rely on it, know its one soft limit.** This connector has no way to delete
-a sheet, and it never asks Google to delete one. That is a promise kept by this
+a spreadsheet file, and it never asks Google to delete one. Claude can change what is
+inside a file, including removing tabs and rows, which version history undoes. That is a promise kept by this
 server's code, not a limit Google enforces: the permission you grant includes the right
 to delete the sheets it covers. Someone who stole this server's stored access could
 delete those sheets, and only those.
@@ -330,22 +331,25 @@ Verified: not executed as written. The owner merged and used the catalog on
 
 ## K. Have Claude set up a sheet's structure
 
-**What it will not do.** Claude cannot remove a tab, rows or columns, or rename the
-file, through this connector. That is a promise kept by this server's code, as with
-deleting the file itself. Some changes it can make, such as find-and-replace and
-sorting, can still spoil a sheet's contents; Google's version history undoes them.
+**What it can and cannot remove.** Claude can remove tabs, rows and columns inside a
+sheet, as well as overwrite cells. Google's version history undoes all of that. Claude
+cannot delete the spreadsheet file itself through this connector, which is a promise
+kept by this server's code and not a limit Google enforces.
 
-**Goal.** Claude can turn an empty sheet into a working one without you doing the
-setup by hand.
+**Goal.** Claude can turn an empty sheet into a working one, and tidy it, without you
+doing the work by hand.
 
-**Verify.** Steps 1 and 2 succeed and step 3 is declined.
+**Verify.** Steps 1 to 3 succeed and step 4 is declined.
 
 1. In a chat where the connector reaches a sheet, ask Claude to add a tab called
    "Notes", freeze the first row of the first tab, and make its header bold.
 2. Ask Claude to put a dropdown with the choices Open and Done in a column. Open the
    sheet: the tab, the frozen bold header and the dropdown are all there.
-3. Ask Claude to delete the "Notes" tab, and then to delete row 5. It declines both
-   and tells you to do them in Google Sheets yourself.
+3. Ask Claude to delete the "Notes" tab. It says what it is about to remove and does
+   it. In Google Sheets, **File → Version history** shows the tab in an earlier
+   version.
+4. Ask Claude to delete the whole spreadsheet. It declines and tells you to do that
+   in Google Sheets yourself.
 
 Sources: this repository's `decisions/0005` and `src/structure.ts`
 Verified: not executed.

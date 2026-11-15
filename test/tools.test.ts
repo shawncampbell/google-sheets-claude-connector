@@ -252,24 +252,38 @@ describe("the connector's tools", () => {
       expect(JSON.parse(text(result)).replies[0].addSheet.properties.sheetId).toBe(7);
     });
 
-    it("refuses to remove a tab, rows, a range or duplicates, or to rename the file, and sends nothing", async () => {
+    it("passes on removing a tab, rows, a range or duplicates, and renaming the file", async () => {
+      const sent: string[] = [];
+      const client = await connect(
+        fakeApi({
+          changeStructure: async (_id, requests) => {
+            sent.push(...requests.map((r) => Object.keys(r as object)[0]!));
+            return { replies: [] };
+          },
+        }),
+      );
+      const names = ["deleteSheet", "deleteDimension", "deleteRange", "deleteDuplicates", "updateSpreadsheetProperties"];
+      const result = await client.callTool({
+        name: "change_structure",
+        arguments: { project_key: KEY, spreadsheet_id: SHEET, requests: names.map((name) => ({ [name]: {} })) },
+      });
+      expect(result.isError).toBeFalsy();
+      expect(sent).toEqual(names);
+    });
+
+    it("has no way to delete, share or move the file itself", async () => {
+      const { ALLOWED_STRUCTURE_REQUESTS } = await import("../src/structure");
+      for (const name of ALLOWED_STRUCTURE_REQUESTS) expect(name).not.toMatch(/spreadsheet$|permission|drive|file|share/i);
       const client = await connect(fakeApi());
-      for (const name of ["deleteSheet", "deleteDimension", "deleteRange", "deleteDuplicates", "updateSpreadsheetProperties"]) {
-        const result = await client.callTool({
-          name: "change_structure",
-          arguments: { project_key: KEY, spreadsheet_id: SHEET, requests: [dropdown, { [name]: {} }] },
-        });
-        expect(result.isError, name).toBe(true);
-        expect(text(result), name).toContain("this connector never does");
-        expect(text(result), name).toContain("Nothing was changed");
-      }
+      const { tools } = await client.listTools();
+      for (const tool of tools) expect(tool.name).not.toMatch(/delete|trash|share|move/);
     });
 
     it("refuses a kind of change it does not know, and a request naming two changes", async () => {
       const client = await connect(fakeApi());
       const unknown = await client.callTool({ name: "change_structure", arguments: { project_key: KEY, spreadsheet_id: SHEET, requests: [{ somethingNew: {} }] } });
       expect(text(unknown)).toContain("does not pass on");
-      const two = await client.callTool({ name: "change_structure", arguments: { project_key: KEY, spreadsheet_id: SHEET, requests: [{ addSheet: {}, deleteSheet: {} }] } });
+      const two = await client.callTool({ name: "change_structure", arguments: { project_key: KEY, spreadsheet_id: SHEET, requests: [{ addSheet: {}, addChart: {} }] } });
       expect(text(two)).toContain("exactly one key");
     });
 
