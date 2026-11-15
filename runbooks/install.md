@@ -85,7 +85,9 @@ client whose redirect address is your Worker's address followed by `/callback`.
    is used only to list the sheets the connector can already reach.
 3. **Google Auth Platform → Branding**: give the app a name and your support email.
    **Audience**: choose **External**, and add your own Google account under **Test
-   users**.
+   users**. It must be the exact account you will sign in with in task D. If it is
+   missing, Google stops the sign-in with "Access blocked: ... has not completed the
+   Google verification process" and error 403 `access_denied`.
 4. **Data Access → Add or remove scopes**: add `openid` and
    `https://www.googleapis.com/auth/drive.file`. Add nothing else.
 5. **Clients → Create client**: type **Web application**. Under **Authorized redirect
