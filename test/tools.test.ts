@@ -38,6 +38,13 @@ describe("the connector's tools", () => {
     expect(client.getInstructions()).toContain("that limit is kept by this server, not by Google");
   });
 
+  it("tells Claude there is no way yet to hand over an existing sheet", async () => {
+    const client = await connect(fakeApi());
+    expect(client.getInstructions()).toContain("not yet any way to give it a sheet that already exists");
+    const { tools } = await client.listTools();
+    expect(tools.find((t) => t.name === "read_sheet")?.description).not.toContain("picked for it");
+  });
+
   it("describes a sheet when read without a range, and reads cells with one", async () => {
     const client = await connect(
       fakeApi({

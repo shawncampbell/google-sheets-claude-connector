@@ -14,7 +14,7 @@ Google account, and this repository (or your fork of it) on GitHub.
 
 **How to read this.** Each task gives its goal and how to verify it before any steps.
 Dashboards change, so the click-paths below are a guide; if a label has moved, search
-the dashboard for the name in bold and go by the goal. Tasks A to D and F have been run so far.
+the dashboard for the name in bold and go by the goal. Tasks A to F have been run so far.
 When you run a task, update its `Verified:` line.
 
 **Never write a real value from these steps into this repository**: not the Worker's
@@ -163,7 +163,9 @@ write a sheet, and cannot read a sheet it was not given.
    tells you to delete it in Google Sheets yourself.
 
 Sources: this repository's `src/tools.ts`
-Verified: not executed.
+Verified: executed 2026-11-15 by the owner (one install). All four steps ended as
+described. In step 3 Claude also told the owner to share the sheet through a settings
+page that does not exist; the connector's wording was changed to stop that.
 
 ## F. Test whether a Claude Project keeps its instructions to itself
 

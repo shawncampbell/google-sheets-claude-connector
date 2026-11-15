@@ -3,6 +3,8 @@
  * deletes, trashes, shares or moves a file. Do not add one.
  */
 
+import { NO_PICKER_YET } from "./statement";
+
 export const GOOGLE_SCOPES = ["openid", "https://www.googleapis.com/auth/drive.file"];
 const DRIVE_FILE_SCOPE = "https://www.googleapis.com/auth/drive.file";
 
@@ -141,8 +143,8 @@ export async function refreshAccessToken(
 }
 
 const NOT_REACHABLE =
-  "This connector cannot reach that sheet. It can reach only sheets it created or sheets " +
-  "the account holder picked for it. Check the id, or use list_sheets to see what it can reach.";
+  "This connector cannot reach that sheet. It can reach only sheets it created. " +
+  `${NO_PICKER_YET} Check the id, or use list_sheets to see what it can reach.`;
 
 /** The calls the tools need. Tests replace this with a fake. */
 export interface SheetsApi {

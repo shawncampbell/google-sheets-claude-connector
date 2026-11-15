@@ -14,6 +14,15 @@ export const DELETE_LIMIT_FOR_MODELS =
   "undo from the sheet's version history. If the user asks for a sheet to be deleted, tell " +
   "them to do it in Google Sheets themselves.";
 
+/**
+ * Remove this, and restore "or sheets the account holder picked for it", when the page
+ * for picking an existing sheet ships. Without it, Claude invents a way to share one.
+ */
+export const NO_PICKER_YET =
+  "There is not yet any way to give it a sheet that already exists, so do not tell the user " +
+  "to share or pick one; say that this is not available yet and offer to create a new sheet.";
+
 export const REACH_FOR_MODELS =
-  "It can reach only sheets it created or sheets the account holder picked for it. It cannot " +
-  "see any other file in the account, even when given a link.";
+  "It can reach only sheets it created. It cannot see any other file in the account, even " +
+  "when given a link or an id. " +
+  NO_PICKER_YET;
