@@ -2,8 +2,9 @@
 
 ## Now
 
-- Run the install runbook against a real account and fix what it turns up
-  (https://github.com/shawncampbell/google-sheets-claude-connector/pull/4)
+- Hand an existing sheet to the connector through Google's file picker
+  (https://github.com/shawncampbell/google-sheets-claude-connector/pull/7)
+- Run the last install runbook task, taking the Google app out of testing
 
 ## Next
 

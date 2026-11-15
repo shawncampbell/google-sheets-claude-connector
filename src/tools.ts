@@ -1,10 +1,10 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import type { SheetsApi } from "./google";
-import { DELETE_LIMIT_FOR_MODELS, REACH_FOR_MODELS } from "./statement";
+import { GoogleError, type SheetsApi } from "./google";
+import { DELETE_LIMIT_FOR_MODELS, pickHintForModels, REACH_FOR_MODELS } from "./statement";
 
-export const SERVER_INSTRUCTIONS =
-  `This connector creates, reads and writes Google Sheets. ${REACH_FOR_MODELS} ${DELETE_LIMIT_FOR_MODELS}`;
+export const serverInstructions = (origin: string) =>
+  `This connector creates, reads and writes Google Sheets. ${REACH_FOR_MODELS} ${pickHintForModels(origin)} ${DELETE_LIMIT_FOR_MODELS}`;
 
 const spreadsheetId = z
   .string()
@@ -27,11 +27,12 @@ const rows = z
 type Result = { content: Array<{ type: "text"; text: string }>; isError?: boolean };
 
 /** Every tool answers with JSON text; a failure Google explains is passed on as an error. */
-async function answer(work: () => Promise<unknown>): Promise<Result> {
+async function answer(work: () => Promise<unknown>, onUnreachable = ""): Promise<Result> {
   try {
     return { content: [{ type: "text", text: JSON.stringify(await work(), null, 2) }] };
   } catch (error) {
-    const message = error instanceof Error ? error.message : "The request failed.";
+    let message = error instanceof Error ? error.message : "The request failed.";
+    if (error instanceof GoogleError && error.kind === "not_reachable" && onUnreachable) message += ` ${onUnreachable}`;
     return { content: [{ type: "text", text: message }], isError: true };
   }
 }
@@ -40,10 +41,11 @@ async function answer(work: () => Promise<unknown>): Promise<Result> {
  * The connector's whole surface. There is no tool that deletes, shares, moves or renames
  * a file, and none that removes a tab. Do not add one without a decision record.
  */
-export function buildServer(api: SheetsApi): McpServer {
+export function buildServer(api: SheetsApi, origin: string): McpServer {
+  const pickHint = pickHintForModels(origin);
   const server = new McpServer(
     { name: "google-sheets-claude-connector", version: "0.0.0" },
-    { instructions: SERVER_INSTRUCTIONS },
+    { instructions: serverInstructions(origin) },
   );
 
   server.registerTool(
@@ -63,7 +65,7 @@ export function buildServer(api: SheetsApi): McpServer {
     "list_sheets",
     {
       title: "List reachable sheets",
-      description: `List the sheets this connector can reach, newest change first. ${REACH_FOR_MODELS}`,
+      description: `List the sheets this connector can reach, newest change first. ${REACH_FOR_MODELS} ${pickHint}`,
       inputSchema: {},
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
@@ -81,7 +83,7 @@ export function buildServer(api: SheetsApi): McpServer {
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
     ({ spreadsheet_id, range }) =>
-      answer(() => (range === undefined ? api.describe(spreadsheet_id) : api.read(spreadsheet_id, range))),
+      answer(() => (range === undefined ? api.describe(spreadsheet_id) : api.read(spreadsheet_id, range)), pickHint),
   );
 
   server.registerTool(
@@ -94,7 +96,7 @@ export function buildServer(api: SheetsApi): McpServer {
       inputSchema: { spreadsheet_id: spreadsheetId, range, values: rows },
       annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
     },
-    ({ spreadsheet_id, range, values }) => answer(() => api.write(spreadsheet_id, range, values)),
+    ({ spreadsheet_id, range, values }) => answer(() => api.write(spreadsheet_id, range, values), pickHint),
   );
 
   server.registerTool(
@@ -107,7 +109,7 @@ export function buildServer(api: SheetsApi): McpServer {
       inputSchema: { spreadsheet_id: spreadsheetId, range, values: rows },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     },
-    ({ spreadsheet_id, range, values }) => answer(() => api.append(spreadsheet_id, range, values)),
+    ({ spreadsheet_id, range, values }) => answer(() => api.append(spreadsheet_id, range, values), pickHint),
   );
 
   return server;

@@ -18,13 +18,18 @@ All notable changes to this project are recorded here. The format follows
 - An install runbook, `runbooks/install.md`, with a task that tests whether a Claude
   Project keeps its instructions to itself.
 
+- A page for handing the connector a sheet that already exists. Open the connector's
+  address followed by `/pick`, choose sheets in Google's own picker, and the connector
+  can read and write them from then on. Claude is told where the page is. Not yet run
+  against a real account.
+
 ### Changed
 
 ### Fixed
 
 - When asked to read a sheet it could not reach, Claude told the user to share the
   sheet through a settings page that does not exist. The connector now tells Claude
-  that handing over an existing sheet is not available yet.
+  exactly where an existing sheet is handed over, and to send the user nowhere else.
 - Connecting in Chrome stopped at the connector's own page: pressing Continue did
   nothing, and pressing it again showed "This authorization was not started in this
   browser". A security header on that page was blocking the hop to Google's sign-in.

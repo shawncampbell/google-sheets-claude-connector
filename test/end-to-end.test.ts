@@ -60,6 +60,8 @@ describe("connecting and using the connector, end to end", () => {
   let store: Map<string, string>;
   let googleCalls: Array<{ url: string; authorization: string | null; body: string }>;
   let googleSubject: string;
+  /** Sheets the stored account can reach, by id: what Google would allow after a pick. */
+  let reachableSheets: Map<string, string>;
 
   const send = (path: string, init?: RequestInit) => worker.fetch(new Request(`${ORIGIN}${path}`, init), env, ctx);
 
@@ -68,6 +70,7 @@ describe("connecting and using the connector, end to end", () => {
     store = data;
     googleCalls = [];
     googleSubject = "google-user-1";
+    reachableSheets = new Map();
     env = {
       OAUTH_KV: kv,
       GOOGLE_CLIENT_ID: "google-client-id",
@@ -90,6 +93,12 @@ describe("connecting and using the connector, end to end", () => {
       }
       if (url === "https://sheets.googleapis.com/v4/spreadsheets") {
         return Response.json({ spreadsheetId: "new-sheet-id-0123456789", spreadsheetUrl: "https://example.com/sheet", properties: { title: "Reading log" } });
+      }
+      const metadata = /^https:\/\/sheets\.googleapis\.com\/v4\/spreadsheets\/([^/?]+)\?fields=/.exec(url);
+      if (metadata) {
+        const id = decodeURIComponent(metadata[1]!);
+        if (!reachableSheets.has(id)) return Response.json({ error: { message: "not found" } }, { status: 404 });
+        return Response.json({ spreadsheetId: id, spreadsheetUrl: "https://example.com/sheet", properties: { title: reachableSheets.get(id) }, sheets: [] });
       }
       throw new Error(`Unexpected outbound request to ${url}`);
     });
@@ -212,6 +221,84 @@ describe("connecting and using the connector, end to end", () => {
     const second = await signIn();
     expect(second.back.status).toBe(403);
     expect(store.has("connector:refresh:google-user-2")).toBe(false);
+  });
+
+  describe("handing over an existing sheet", () => {
+    /** Presses the button on the pick page and returns where Google was asked to send the browser. */
+    async function startPick() {
+      const jar = new Map<string, string>();
+      const started = await send("/pick", { method: "POST", headers: { Origin: ORIGIN, Cookie: "" }, body: "decision=pick" });
+      cookiesFrom(started, jar);
+      const googleUrl = new URL(started.headers.get("Location") ?? "https://missing.example");
+      return { started, googleUrl, jar, state: googleUrl.searchParams.get("state") ?? "" };
+    }
+    const comeBack = (state: string, jar: Map<string, string>, extra: string) =>
+      send(`/callback?state=${encodeURIComponent(state)}&${extra}`, { headers: { Cookie: cookieHeader(jar) } });
+
+    it("states the delete limit on the pick page", async () => {
+      const page = await send("/pick");
+      expect(page.status).toBe(200);
+      expect(await page.text()).toContain("not a limit Google enforces");
+    });
+
+    it("sends the browser to Google's picker asking for per-file access alone", async () => {
+      const { started, googleUrl } = await startPick();
+      expect(started.status).toBe(302);
+      expect(googleUrl.searchParams.get("scope")).toBe(DRIVE_FILE);
+      expect(googleUrl.searchParams.get("trigger_onepick")).toBe("true");
+      expect(googleUrl.searchParams.get("prompt")).toBe("consent");
+      expect(googleUrl.searchParams.get("access_type")).toBe("online");
+      expect(googleUrl.searchParams.get("redirect_uri")).toBe(`${ORIGIN}/callback`);
+    });
+
+    it("reports a picked sheet as added once the connected account can reach it", async () => {
+      await signIn();
+      const { state, jar } = await startPick();
+      reachableSheets.set("picked-sheet-id-0123456789", "Budget <2026>");
+      const done = await comeBack(state, jar, "code=pick-code&picked_file_ids=picked-sheet-id-0123456789");
+      expect(done.status).toBe(200);
+      const html = await done.text();
+      expect(html).toContain("Sheets added");
+      expect(html).toContain("Budget &#60;2026&#62;");
+      expect(html).toContain("not a limit Google enforces");
+    });
+
+    it("reports a sheet picked with a different Google account as not added", async () => {
+      await signIn();
+      const { state, jar } = await startPick();
+      const done = await comeBack(state, jar, "code=pick-code&picked_file_ids=someone-elses-sheet-0123456789");
+      const html = await done.text();
+      expect(html).toContain("Nothing was added");
+      expect(html).toContain("1 picked file was not added");
+    });
+
+    it("keeps nothing from a pick: no new token and no list of sheets", async () => {
+      await signIn();
+      const before = [...store.keys()].sort();
+      const { state, jar } = await startPick();
+      reachableSheets.set("picked-sheet-id-0123456789", "Budget");
+      await comeBack(state, jar, "code=pick-code&picked_file_ids=picked-sheet-id-0123456789");
+      expect([...store.keys()].sort()).toEqual(before);
+    });
+
+    it("refuses a pick that comes back to a different browser, or twice", async () => {
+      await signIn();
+      const { state, jar } = await startPick();
+      expect((await comeBack(state, new Map(), "code=pick-code")).status).toBe(400);
+      expect((await comeBack(state, jar, "code=pick-code")).status).toBe(200);
+      expect((await comeBack(state, jar, "code=pick-code")).status).toBe(400);
+    });
+
+    it("refuses to start a pick from another site", async () => {
+      const response = await send("/pick", { method: "POST", headers: { Origin: "https://evil.example" }, body: "decision=pick" });
+      expect(response.status).toBe(403);
+    });
+
+    it("asks for the connector to be connected first when nobody has signed in", async () => {
+      const { state, jar } = await startPick();
+      const done = await comeBack(state, jar, "code=pick-code&picked_file_ids=picked-sheet-id-0123456789");
+      expect(done.status).toBe(409);
+    });
   });
 
   it("refuses the connector endpoint without a token", async () => {

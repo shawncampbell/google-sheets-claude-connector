@@ -2,6 +2,7 @@ import { AuthorizationError, authorizationErrorRedirect } from "@cloudflare/work
 import type { AppEnv, AuthProps } from "./env";
 import { exchangeCode, GoogleError, googleAuthorizeUrl } from "./google";
 import { consentPage, homePage, htmlHeaders, messagePage } from "./pages";
+import { finishPick, PICK_STATE_PREFIX, type PickResponse, showPick, startPick } from "./pick";
 import { claimDeployment, saveGoogleAccess } from "./store";
 
 function html(body: string, status = 200, headers = new Headers()): Response {
@@ -11,6 +12,13 @@ function html(body: string, status = 200, headers = new Headers()): Response {
 function redirect(location: string, headers = new Headers()): Response {
   headers.set("Location", location);
   return new Response(null, { status: 302, headers });
+}
+
+function fromPick(result: PickResponse): Response {
+  const headers = new Headers();
+  if (result.setCookie) headers.append("Set-Cookie", result.setCookie);
+  if (result.location) return redirect(result.location, headers);
+  return html(result.body ?? "", result.status, headers);
 }
 
 function isConfigured(env: AppEnv): boolean {
@@ -115,7 +123,7 @@ export const authHandler = {
     const { pathname } = new URL(request.url);
     try {
       if (pathname === "/" && request.method === "GET") return html(homePage());
-      if (pathname === "/authorize" || pathname === "/callback") {
+      if (pathname === "/authorize" || pathname === "/callback" || pathname === "/pick") {
         if (!isConfigured(env)) {
           return html(
             messagePage(
@@ -128,7 +136,14 @@ export const authHandler = {
         }
         if (pathname === "/authorize" && request.method === "GET") return await showConsent(request, env);
         if (pathname === "/authorize" && request.method === "POST") return await startGoogleSignIn(request, env);
-        if (pathname === "/callback" && request.method === "GET") return await finishGoogleSignIn(request, env);
+        if (pathname === "/pick" && request.method === "GET") return fromPick(showPick());
+        if (pathname === "/pick" && request.method === "POST") return fromPick(await startPick(request, env));
+        if (pathname === "/callback" && request.method === "GET") {
+          // Google sends sign-ins and picks back to the same address; the state says which.
+          const state = new URL(request.url).searchParams.get("state") ?? "";
+          if (state.startsWith(PICK_STATE_PREFIX)) return fromPick(await finishPick(request, env));
+          return await finishGoogleSignIn(request, env);
+        }
       }
       return new Response("Not found", { status: 404 });
     } catch (error) {

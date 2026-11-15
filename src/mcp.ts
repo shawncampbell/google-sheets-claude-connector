@@ -18,7 +18,7 @@ export const mcpHandler = {
       return new Response("This connection has no signed-in Google account.", { status: 401 });
     }
     const api = createSheetsApi(googleFetch, () => getGoogleAccessToken(env, sub, googleFetch));
-    const server = buildServer(api);
+    const server = buildServer(api, new URL(request.url).origin);
     const transport = new WebStandardStreamableHTTPServerTransport({
       sessionIdGenerator: undefined,
       enableJsonResponse: true,
