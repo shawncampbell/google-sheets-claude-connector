@@ -55,7 +55,7 @@ describe("what is asked of Google when using a sheet", () => {
 
   it("lists only spreadsheets that are not in the bin", async () => {
     const { calls, sheets } = api([{ json: { files: [{ id: "id-1", name: "Log", modifiedTime: "2026-01-01T00:00:00Z" }] } }]);
-    await expect(sheets.list()).resolves.toEqual([{ spreadsheetId: "id-1", title: "Log", modifiedTime: "2026-01-01T00:00:00Z" }]);
+    await expect(sheets.list()).resolves.toEqual([{ spreadsheetId: "id-1", title: "Log", modifiedTime: "2026-01-01T00:00:00Z", createdTime: "" }]);
     const q = new URL(calls[0]!.url).searchParams.get("q");
     expect(q).toBe("mimeType='application/vnd.google-apps.spreadsheet' and trashed=false");
   });
@@ -79,7 +79,15 @@ describe("what is asked of Google when using a sheet", () => {
     await expect(sheets.read("id-9", "A1")).rejects.toMatchObject({ kind: "not_reachable" });
   });
 
-  it("never sends a DELETE and never calls a delete, trash, share or batch-update method", async () => {
+  it("writes the catalog exactly as given, so a title starting with = is never run as a formula", async () => {
+    const { calls, sheets } = api([{ json: {} }, { json: {} }]);
+    await sheets.clearValues("id-1", "A:H");
+    await sheets.writeRaw("id-1", "A1", [["=IMPORTRANGE(1)"]]);
+    expect(calls[0]).toMatchObject({ method: "POST", url: "https://sheets.googleapis.com/v4/spreadsheets/id-1/values/A%3AH:clear" });
+    expect(calls[1]?.url).toContain("valueInputOption=RAW");
+  });
+
+  it("never sends a DELETE and never calls a delete, trash, share or batch-update method from a tool's path", async () => {
     const { calls, sheets } = api([
       { json: { spreadsheetId: "i", spreadsheetUrl: "u", properties: { title: "t" } } },
       { json: { files: [] } },

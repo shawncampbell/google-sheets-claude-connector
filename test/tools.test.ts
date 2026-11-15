@@ -8,7 +8,7 @@ function fakeApi(overrides: Partial<SheetsApi> = {}): SheetsApi {
   const unused = async () => {
     throw new Error("not expected in this test");
   };
-  return { create: unused, list: unused, describe: unused, read: unused, write: unused, append: unused, ...overrides };
+  return { create: unused, list: unused, describe: unused, read: unused, write: unused, append: unused, clearValues: unused, writeRaw: unused, ...overrides };
 }
 
 const KEY = "sheets-key-for-project-a";
@@ -16,11 +16,16 @@ const SHEET = "abcdefghij1234567890";
 const OPEN_SHEET = "sheet-open-to-any-chat-0123456789";
 
 /** One group, reached by KEY, holding SHEET. `assigned` records what create_sheet adds. */
+const CATALOG = "the-catalog-sheet-0123456789";
+const created: Array<[string, string | undefined]> = [];
+
 function fakeGroups(assigned: Array<[string, string]> = []): GroupAccess {
   return {
+    catalogId: async () => CATALOG,
+    sheetCreated: (sheetId, purpose) => void created.push([sheetId, purpose]),
     groupForKey: async (key) => (key === KEY ? { id: "group-a", name: "Project A" } : null),
     groupOfSheet: async (id) =>
-      id === SHEET ? "group-a" : id === "sheet-in-group-b-0123456789" ? "group-b" : id === OPEN_SHEET ? "open" : null,
+      id === SHEET ? "group-a" : id === "sheet-in-group-b-0123456789" ? "group-b" : id === OPEN_SHEET || id === CATALOG ? "open" : null,
     assignSheet: async (sheetId, groupId) => void assigned.push([sheetId, groupId]),
     sheetsInGroup: async (groupId) => new Set(groupId === "group-a" ? [SHEET] : groupId === "open" ? [OPEN_SHEET] : []),
   };
@@ -117,9 +122,9 @@ describe("the connector's tools", () => {
         fakeApi({
           read: async (_id, range) => ({ range, values: [["open"]] }),
           list: async () => [
-            { spreadsheetId: SHEET, title: "Project A's", modifiedTime: "t" },
-            { spreadsheetId: OPEN_SHEET, title: "Shared", modifiedTime: "t" },
-            { spreadsheetId: "sheet-in-no-place-0123456789", title: "Unplaced", modifiedTime: "t" },
+            { spreadsheetId: SHEET, title: "Project A's", modifiedTime: "t", createdTime: "t" },
+            { spreadsheetId: OPEN_SHEET, title: "Shared", modifiedTime: "t", createdTime: "t" },
+            { spreadsheetId: "sheet-in-no-place-0123456789", title: "Unplaced", modifiedTime: "t", createdTime: "t" },
           ],
         }),
       );
@@ -187,9 +192,9 @@ describe("the connector's tools", () => {
       const client = await connect(
         fakeApi({
           list: async () => [
-            { spreadsheetId: SHEET, title: "Mine", modifiedTime: "t" },
-            { spreadsheetId: "sheet-in-group-b-0123456789", title: "Other project's", modifiedTime: "t" },
-            { spreadsheetId: OPEN_SHEET, title: "Shared", modifiedTime: "t" },
+            { spreadsheetId: SHEET, title: "Mine", modifiedTime: "t", createdTime: "t" },
+            { spreadsheetId: "sheet-in-group-b-0123456789", title: "Other project's", modifiedTime: "t", createdTime: "t" },
+            { spreadsheetId: OPEN_SHEET, title: "Shared", modifiedTime: "t", createdTime: "t" },
           ],
         }),
       );
@@ -203,6 +208,25 @@ describe("the connector's tools", () => {
     it("tells Claude never to repeat a key or save it to memory", async () => {
       const client = await connect(fakeApi());
       expect(client.getInstructions()).toContain("Never repeat a key in a reply, and never save one to memory");
+    });
+  });
+
+  describe("the catalog", () => {
+    it("can be read when the owner has placed it, and never written", async () => {
+      const client = await connect(fakeApi({ read: async (_id, range) => ({ range, values: [] }) }));
+      expect((await client.callTool({ name: "read_sheet", arguments: { spreadsheet_id: CATALOG, range: "A1" } })).isError).toBeFalsy();
+      for (const name of ["write_range", "append_rows"] as const) {
+        const result = await client.callTool({ name, arguments: { spreadsheet_id: CATALOG, range: "A1", values: [["x"]] } });
+        expect(result.isError, name).toBe(true);
+        expect(text(result), name).toContain("connector's own catalog");
+      }
+    });
+
+    it("is told when a sheet is created, with the purpose Claude gave", async () => {
+      created.length = 0;
+      const client = await connect(fakeApi({ create: async (title) => ({ spreadsheetId: "new-sheet-0123456789", url: "u", title }) }));
+      await client.callTool({ name: "create_sheet", arguments: { project_key: KEY, title: "Log", purpose: "Books read this year." } });
+      expect(created).toEqual([["new-sheet-0123456789", "Books read this year."]]);
     });
   });
 });

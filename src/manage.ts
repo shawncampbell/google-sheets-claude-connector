@@ -1,3 +1,4 @@
+import { createCatalog, getCatalogId, refreshCatalog, refreshCatalogQuietly, sheetLink } from "./catalog";
 import type { AppEnv } from "./env";
 import { type PageResponse, postedFromThisSite } from "./flow";
 import { createSheetsApi, type Fetcher } from "./google";
@@ -15,6 +16,11 @@ const googleFetch: Fetcher = (input, init) => fetch(input, init);
 const SHEET_ID = /^[A-Za-z0-9_-]{10,200}$/;
 
 const back: PageResponse = { status: 303, location: "/manage" };
+
+async function ownerApi(env: AppEnv) {
+  const owner = await getDeploymentOwner(env);
+  return owner === null ? null : createSheetsApi(googleFetch, () => getGoogleAccessToken(env, owner, googleFetch));
+}
 
 async function guard(request: Request, env: AppEnv, isPost: boolean): Promise<PageResponse | null> {
   if (isPost && !postedFromThisSite(request)) {
@@ -37,7 +43,14 @@ export async function showManage(request: Request, env: AppEnv): Promise<PageRes
   } catch {
     googleFailed = true;
   }
-  const placed = await Promise.all(sheets.map(async (s) => ({ ...s, groupId: await groupOfSheet(env, s.spreadsheetId) })));
+  const catalogId = await getCatalogId(env);
+  const placed = await Promise.all(
+    sheets.map(async (s) => ({
+      ...s,
+      title: s.spreadsheetId === catalogId ? `${s.title} (the catalog)` : s.title,
+      groupId: await groupOfSheet(env, s.spreadsheetId),
+    })),
+  );
   return {
     status: 200,
     body: managePage({
@@ -45,6 +58,7 @@ export async function showManage(request: Request, env: AppEnv): Promise<PageRes
       open: placed.filter((s) => s.groupId === OPEN),
       unplaced: placed.filter((s) => s.groupId !== OPEN && !groups.some((g) => g.id === s.groupId)),
       googleFailed,
+      catalogLink: catalogId === null ? null : sheetLink(catalogId),
       canAddGroup: groups.length < MAX_GROUPS,
     }),
   };
@@ -79,6 +93,23 @@ export async function placeSheet(request: Request, env: AppEnv): Promise<PageRes
   const groupId = String(form.get("group") ?? "");
   if (SHEET_ID.test(sheetId) && (await isPlace(env, groupId))) {
     await assignSheet(env, sheetId, groupId);
+    const api = await ownerApi(env);
+    if (api) await refreshCatalogQuietly(env, api);
+  }
+  return back;
+}
+
+/** POST /manage/catalog: create the catalog sheet if there is none, and bring it up to date. */
+export async function updateCatalog(request: Request, env: AppEnv): Promise<PageResponse> {
+  const refused = await guard(request, env, true);
+  if (refused) return refused;
+  const api = await ownerApi(env);
+  if (api === null) return back;
+  try {
+    if ((await getCatalogId(env)) === null) await createCatalog(env, api);
+    else if (!(await refreshCatalog(env, api))) return back;
+  } catch {
+    return { status: 502, body: messagePage("The catalog could not be updated", "Google could not be reached, or the catalog sheet is gone. Try again in a moment.") };
   }
   return back;
 }

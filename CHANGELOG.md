@@ -36,6 +36,10 @@ All notable changes to this project are recorded here. The format follows
   chat" instead of a group, and is then reachable from every chat on the account with
   no key.
 
+- A catalog. From `/manage` you can have the connector create and keep one sheet that
+  lists every sheet it can reach, where each is, and a note on what it is for. Claude
+  can give a one-line purpose when it creates a sheet, which becomes the first note.
+
 ### Changed
 
 - A call with no project key is no longer refused. It reaches only the sheets open to

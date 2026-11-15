@@ -2,8 +2,8 @@
 
 ## Now
 
-- Let a sheet be open to any chat, with no key
-  (https://github.com/shawncampbell/google-sheets-claude-connector/pull/9)
+- A catalog of the connector's sheets, kept by the connector
+  (https://github.com/shawncampbell/google-sheets-claude-connector/pull/10)
 - After a week of real use, run the last step of runbook task I: ask a chat outside a
   Project for that Project's key
 

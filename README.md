@@ -22,6 +22,8 @@ copy and check it for yourself. The plan is in `ROADMAP.md` and the reasoning is
   the Project that holds it.
 - A sheet can instead be open to any chat on your account, with no key. A chat without
   a key reaches those sheets and nothing else.
+- If you ask it to, it keeps a catalog: one sheet listing every sheet it can reach,
+  where each one is, and a note on what it is for. No chat can write to the catalog.
 - It has no tool that deletes a sheet.
 
 **Read this before relying on the last point.** Google's per-file permission includes
