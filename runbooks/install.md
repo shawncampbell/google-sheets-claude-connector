@@ -14,7 +14,7 @@ Google account, and this repository (or your fork of it) on GitHub.
 
 **How to read this.** Each task gives its goal and how to verify it before any steps.
 Dashboards change, so the click-paths below are a guide; if a label has moved, search
-the dashboard for the name in bold and go by the goal. Tasks A to F have been run so far.
+the dashboard for the name in bold and go by the goal. Tasks A to F have been run so far; G and H have not.
 When you run a task, update its `Verified:` line.
 
 **Never write a real value from these steps into this repository**: not the Worker's
@@ -81,8 +81,10 @@ exactly two scopes, `openid` and `.../auth/drive.file`, and **Clients** lists on
 client whose redirect address is your Worker's address followed by `/callback`.
 
 1. Create a new Google Cloud project used for nothing else.
-2. Enable two APIs in it: **Google Sheets API** and **Google Drive API**. The Drive API
-   is used only to list the sheets the connector can already reach.
+2. Enable three APIs in it: **Google Sheets API**, **Google Drive API** and **Google
+   Picker API**. The Drive API is used only to list the sheets the connector can
+   already reach. The Picker API is what lets you hand over an existing sheet in
+   task H.
 3. **Google Auth Platform → Branding**: give the app a name and your support email.
    **Audience**: choose **External**, and add your own Google account under **Test
    users**. It must be the exact account you will sign in with in task D. If it is
@@ -205,4 +207,37 @@ Whether Google asks for a review at this step, for an app that requests only the
 scopes, has not been confirmed. If it does, stop and record what it asked for.
 
 Sources: developers.google.com/identity/protocols/oauth2 (refresh token expiration)
+Verified: not executed.
+
+## H. Hand over a sheet that already exists
+
+**Before you pick, the same limit applies.** The connector has no way to delete a
+sheet, but that is a promise kept by this server's code, not a limit Google enforces.
+A picked sheet is covered by a permission that includes deleting it.
+
+**Goal.** The connector can read and write one sheet you already had, and still cannot
+reach the others.
+
+**Verify.** After picking, Claude can read the picked sheet, and a different sheet you
+did not pick is still refused.
+
+1. Make sure **Google Picker API** is enabled in the Google Cloud project (task B,
+   step 2).
+2. In a browser, open your Worker's address followed by `/pick`, read the page, and
+   select **Choose sheets in Google**.
+3. Sign in with the same Google account you connected in Claude. Google shows your
+   spreadsheets. Choose one and confirm.
+4. You land back on the connector, on a page titled "Sheets added" that names the
+   sheet. If it says a file was not added, the pick was made with a different Google
+   account, or the file is not a Google Sheet.
+5. In Claude, ask for the list of sheets the connector can reach, then ask it to read
+   the picked sheet. Then ask it to read some other sheet by its id, which should be
+   refused, with Claude pointing you to the `/pick` page and nowhere else.
+
+To take a sheet back, remove the connector's access in your Google account's settings
+for third-party connections. That takes back every sheet at once, and you reconnect in
+Claude afterwards. Whether Google offers a way to take back one sheet has not been
+checked.
+
+Sources: developers.google.com/workspace/drive/picker/guides/overview-desktop
 Verified: not executed.

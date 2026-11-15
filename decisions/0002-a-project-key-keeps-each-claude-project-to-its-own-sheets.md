@@ -1,7 +1,7 @@
 # 0002: A project key keeps each Claude Project to its own sheets
 
-**Status:** proposed, 2026-11-15. Drafted by the agent for the owner to accept. The
-proof in `ROADMAP.md` tests it; accept it after the test, not before.
+**Status:** accepted by the owner, 2026-11-15, after the test in runbook task F. Not yet
+built.
 **Reversible?** yes. It is a rule inside our own server and can be replaced.
 **Revisit when:** Claude tells a connector which Project a request comes from, or lets
 a connector be switched on for one Project only.

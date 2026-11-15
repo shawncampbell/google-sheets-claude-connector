@@ -3,8 +3,6 @@
  * deletes, trashes, shares or moves a file. Do not add one.
  */
 
-import { NO_PICKER_YET } from "./statement";
-
 export const GOOGLE_SCOPES = ["openid", "https://www.googleapis.com/auth/drive.file"];
 const DRIVE_FILE_SCOPE = "https://www.googleapis.com/auth/drive.file";
 
@@ -44,6 +42,51 @@ export function googleAuthorizeUrl(input: {
   url.searchParams.set("access_type", "offline");
   url.searchParams.set("prompt", "consent");
   return url.toString();
+}
+
+/**
+ * Google's own file picker, shown as part of its consent screen. Google allows only the
+ * per-file permission here, with no other scope beside it. `online` means no second
+ * lasting token is issued: the access already stored covers whatever is picked.
+ */
+export function googlePickUrl(input: {
+  clientId: string;
+  redirectUri: string;
+  state: string;
+  codeChallenge: string;
+}): string {
+  const url = new URL(AUTH_URL);
+  url.searchParams.set("client_id", input.clientId);
+  url.searchParams.set("redirect_uri", input.redirectUri);
+  url.searchParams.set("response_type", "code");
+  url.searchParams.set("scope", DRIVE_FILE_SCOPE);
+  url.searchParams.set("state", input.state);
+  url.searchParams.set("code_challenge", input.codeChallenge);
+  url.searchParams.set("code_challenge_method", "S256");
+  url.searchParams.set("access_type", "online");
+  url.searchParams.set("prompt", "consent");
+  url.searchParams.set("trigger_onepick", "true");
+  url.searchParams.set("allow_multiple", "true");
+  url.searchParams.set("mimetypes", SHEET_MIME);
+  return url.toString();
+}
+
+/** Google asks that the code from a pick be exchanged. The token it returns is not kept. */
+export async function exchangePickCode(
+  fetcher: Fetcher,
+  input: { clientId: string; clientSecret: string; redirectUri: string; code: string; codeVerifier: string },
+): Promise<void> {
+  const json = await postToken(fetcher, {
+    grant_type: "authorization_code",
+    client_id: input.clientId,
+    client_secret: input.clientSecret,
+    redirect_uri: input.redirectUri,
+    code: input.code,
+    code_verifier: input.codeVerifier,
+  });
+  if (json.error || !json.access_token) {
+    throw new GoogleError("Google did not complete the pick. Please try again.", "unavailable");
+  }
 }
 
 export interface GoogleSignIn {
@@ -143,8 +186,8 @@ export async function refreshAccessToken(
 }
 
 const NOT_REACHABLE =
-  "This connector cannot reach that sheet. It can reach only sheets it created. " +
-  `${NO_PICKER_YET} Check the id, or use list_sheets to see what it can reach.`;
+  "This connector cannot reach that sheet. It can reach only sheets it created or sheets " +
+  "the account holder picked for it. Check the id, or use list_sheets to see what it can reach.";
 
 /** The calls the tools need. Tests replace this with a fake. */
 export interface SheetsApi {

@@ -1,5 +1,5 @@
 import type { ConsentDescription } from "@cloudflare/workers-oauth-provider";
-import { DELETE_LIMIT_FOR_PEOPLE } from "./statement";
+import { DELETE_LIMIT_FOR_PEOPLE, PICK_FOR_PEOPLE } from "./statement";
 
 const escape = (value: string) => value.replace(/[&<>"']/g, (char) => `&#${char.charCodeAt(0)};`);
 
@@ -38,14 +38,17 @@ export const htmlHeaders = (headers = new Headers()): Headers => {
   return headers;
 };
 
+const DELETE_LIMIT_BLOCK = `<p class="limit"><strong>About deleting.</strong> ${escape(DELETE_LIMIT_FOR_PEOPLE)}</p>`;
+
 const WHAT_IT_CAN_REACH = `
 <p>If you continue, Google will ask you to let this connector see, edit, create and delete
 <strong>only the specific Google Drive files you use with it</strong>. In practice that means:</p>
 <ul>
   <li>It can create new sheets, and read and write the sheets it created.</li>
+  <li>It can read and write an existing sheet only after you pick that sheet for it.</li>
   <li>It cannot see any other file in your Google account.</li>
 </ul>
-<p class="limit"><strong>About deleting.</strong> ${escape(DELETE_LIMIT_FOR_PEOPLE)}</p>`;
+${DELETE_LIMIT_BLOCK}`;
 
 export function consentPage(details: ConsentDescription, handle: string): string {
   const name = escape(details.clientName || "An app");
@@ -74,10 +77,43 @@ export function homePage(): string {
     "Google Sheets connector",
     `<p>This address is a connector for Claude. Add it in Claude's connector settings as a
 custom connector, using this address followed by <code>/mcp</code>.</p>
+<p>Once it is connected, you can <a href="/pick">give it a sheet that already exists</a>.</p>
 ${WHAT_IT_CAN_REACH}`,
   );
 }
 
 export function messagePage(title: string, message: string): string {
   return page(title, `<p>${escape(message)}</p>`);
+}
+
+export function pickPage(): string {
+  return page(
+    "Give the connector an existing sheet",
+    `<p>${escape(PICK_FOR_PEOPLE)}</p>
+<p>If you continue, Google will ask you to sign in and then show your spreadsheets. Choose
+the ones to hand over. Sign in with the same Google account you connected in Claude.</p>
+${DELETE_LIMIT_BLOCK}
+<p>To take a sheet back later, remove this connector's access in your Google account's
+settings for third-party connections. That takes back every sheet at once.</p>
+<form method="post">
+  <p><button name="decision" value="pick">Choose sheets in Google</button></p>
+</form>`,
+  );
+}
+
+export function pickResultPage(added: string[], notAdded: number): string {
+  const list = added.length
+    ? `<p>The connector can now read and write:</p><ul>${added.map((title) => `<li>${escape(title)}</li>`).join("")}</ul>`
+    : "<p>No sheet was added.</p>";
+  const failed = notAdded
+    ? `<p><strong>${notAdded} picked ${notAdded === 1 ? "file was" : "files were"} not added.</strong> This happens when
+the pick was made with a different Google account from the one connected in Claude, or the
+file is not a Google Sheet.</p>`
+    : "";
+  return page(
+    added.length ? "Sheets added" : "Nothing was added",
+    `${list}${failed}
+${added.length ? DELETE_LIMIT_BLOCK : ""}
+<p><a href="/pick">Pick more sheets</a>. You can close this page and go back to Claude.</p>`,
+  );
 }

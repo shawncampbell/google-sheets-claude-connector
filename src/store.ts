@@ -23,6 +23,28 @@ export async function claimDeployment(env: AppEnv, sub: string): Promise<boolean
   return owner === sub;
 }
 
+/** The Google account this deployment serves, or null before anyone has connected. */
+export function getDeploymentOwner(env: AppEnv): Promise<string | null> {
+  return env.OAUTH_KV.get(OWNER_KEY);
+}
+
+const pickKey = (stateHash: string) => `connector:pick:${stateHash}`;
+
+/** Remembers a pick that has been sent to Google, for ten minutes, sealed like a token. */
+export async function savePick(env: AppEnv, stateHash: string, verifier: string): Promise<void> {
+  await env.OAUTH_KV.put(pickKey(stateHash), await encrypt(env.TOKEN_ENCRYPTION_KEY, verifier, pickKey(stateHash)), {
+    expirationTtl: 600,
+  });
+}
+
+/** Returns the pick's verifier once, then forgets it. Null if unknown, expired or already used. */
+export async function takePick(env: AppEnv, stateHash: string): Promise<string | null> {
+  const sealed = await env.OAUTH_KV.get(pickKey(stateHash));
+  if (sealed === null) return null;
+  await env.OAUTH_KV.delete(pickKey(stateHash));
+  return decrypt(env.TOKEN_ENCRYPTION_KEY, sealed, pickKey(stateHash));
+}
+
 export async function saveGoogleAccess(
   env: AppEnv,
   sub: string,

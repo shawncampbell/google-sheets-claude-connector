@@ -90,6 +90,16 @@ The agent filled this in from the conversation; the owner should correct it.
   directly and cannot pass Access, so the Worker is public and protects itself with the
   Google sign-in. This is a recorded exception to that standard.
 
+- **The picker is Google's redirect version, not a picker embedded in our page**
+  (2026-11-15). Point 4 imagined our page showing Google's picker. Google also offers
+  the picker as a step inside its own consent screen, started by adding one parameter
+  to the sign-in address, and it allows only `drive.file` there. That needs no browser
+  API key, puts no Google token in the browser, and loads no Google script on our
+  page. The connector keeps nothing from a pick: Google records the grant against the
+  account and this app, so the access stored at sign-in covers the picked sheets.
+  Source: Google, "Integrate the Google Picker into desktop and mobile apps", read
+  2026-11-15. Not yet run against a real account.
+
 ## Alternatives set aside
 
 - **A second Google account that holds only shared sheets, used with the official

@@ -13,7 +13,7 @@ function fakeApi(overrides: Partial<SheetsApi> = {}): SheetsApi {
 
 async function connect(api: SheetsApi) {
   const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
-  await buildServer(api).connect(serverSide);
+  await buildServer(api, "https://connector.example").connect(serverSide);
   const client = new Client({ name: "test", version: "0" });
   await client.connect(clientSide);
   return client;
@@ -38,11 +38,23 @@ describe("the connector's tools", () => {
     expect(client.getInstructions()).toContain("that limit is kept by this server, not by Google");
   });
 
-  it("tells Claude there is no way yet to hand over an existing sheet", async () => {
+  it("tells Claude where an existing sheet is handed over, and nowhere else", async () => {
     const client = await connect(fakeApi());
-    expect(client.getInstructions()).toContain("not yet any way to give it a sheet that already exists");
-    const { tools } = await client.listTools();
-    expect(tools.find((t) => t.name === "read_sheet")?.description).not.toContain("picked for it");
+    expect(client.getInstructions()).toContain("opens https://connector.example/pick in a browser");
+    expect(client.getInstructions()).toContain("do not send the user anywhere else");
+  });
+
+  it("adds the pick page to a refusal for a sheet it cannot reach", async () => {
+    const client = await connect(
+      fakeApi({
+        read: async () => {
+          throw new GoogleError("This connector cannot reach that sheet.", "not_reachable");
+        },
+      }),
+    );
+    const result = await client.callTool({ name: "read_sheet", arguments: { spreadsheet_id: "abcdefghij1234567890", range: "A1" } });
+    expect(result.isError).toBe(true);
+    expect(text(result)).toContain("https://connector.example/pick");
   });
 
   it("describes a sheet when read without a range, and reads cells with one", async () => {

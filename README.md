@@ -12,8 +12,9 @@ copy and check it for yourself. The plan is in `ROADMAP.md` and the reasoning is
 
 ## What it will and will not do
 
-- It creates new sheets, reads them, and writes to them. Handing it a sheet that
-  already exists is the next step on the roadmap and does not work yet.
+- It creates new sheets, reads them, and writes to them.
+- It reads and writes a sheet that already exists only after you pick that sheet for
+  it, on the connector's own `/pick` page, using Google's file picker.
 - It cannot see any other file in your Google account.
 - It has no tool that deletes a sheet.
 
