@@ -1,0 +1,13 @@
+{
+  // Nothing in this file identifies one deployment. The KV namespace is bound by name
+  // and created on first deploy. Secrets and variables are set in the Cloudflare
+  // dashboard and kept across deploys by keep_vars.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "google-sheets-claude-connector",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "keep_vars": true,
+  "kv_namespaces": [{ "binding": "OAUTH_KV" }],
+  "observability": { "enabled": true }
+}

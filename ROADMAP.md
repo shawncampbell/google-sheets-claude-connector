@@ -2,8 +2,8 @@
 
 ## Now
 
-- Set up the repository: project files, public-repo rules, and the first two decision
-  records for the owner to accept (https://github.com/shawncampbell/google-sheets-claude-connector/pull/1)
+- Add the build and deploy configuration the proof needs, in its own PR
+  (https://github.com/shawncampbell/google-sheets-claude-connector/pull/2)
 
 ## Next
 
