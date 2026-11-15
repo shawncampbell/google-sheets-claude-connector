@@ -14,7 +14,7 @@ Google account, and this repository (or your fork of it) on GitHub.
 
 **How to read this.** Each task gives its goal and how to verify it before any steps.
 Dashboards change, so the click-paths below are a guide; if a label has moved, search
-the dashboard for the name in bold and go by the goal. Tasks A and F have been run so far.
+the dashboard for the name in bold and go by the goal. Tasks A to F have been run so far.
 When you run a task, update its `Verified:` line.
 
 **Never write a real value from these steps into this repository**: not the Worker's
@@ -30,27 +30,35 @@ with no Cloudflare credential stored in GitHub.
 
 **Verify.** Opening the Worker's address in a browser shows a page titled "Google
 Sheets connector". Opening the address followed by `/authorize` shows "This connector
-is not set up yet", because task C has not been done.
+is not set up yet", because task C has not been done. After the next merge to the
+default branch, the Worker's build history shows a new build without anyone starting
+it.
 
-1. In the Cloudflare dashboard, **Workers & Pages** → **Create application** → import
+1. Give Cloudflare's GitHub app access to this repository. In GitHub, open your
+   **Settings → Applications → Cloudflare Workers and Pages → Configure**. If it is
+   set to **Only select repositories**, add this repository to the list. Without this,
+   Cloudflare is never told about a push: the first deploy can still succeed, and then
+   no later merge builds anything, with no error shown anywhere.
+2. In the Cloudflare dashboard, **Workers & Pages** → **Create application** → import
    the repository from GitHub. Keep the project name the same as `name` in
    `wrangler.jsonc`.
-2. Leave the build command empty and the deploy command as `npx wrangler deploy`.
-3. Let Cloudflare create the API token it offers, then deploy. The first deploy creates
+3. Leave the build command empty and the deploy command as `npx wrangler deploy`.
+4. Let Cloudflare create the API token it offers, then deploy. The first deploy creates
    the KV namespace the Worker stores its data in; the token must be allowed to edit
    Workers KV Storage as well as Workers Scripts.
-4. Leave preview builds off. In the Worker's **Settings → Build → Branch control**,
+5. Leave preview builds off. In the Worker's **Settings → Build → Branch control**,
    **Enable Preview Builds** should be clear, so that only the default branch deploys.
    A preview build would publish every pushed branch, reviewed or not, at its own
    public address with the same secrets and the same stored Google access as the real
    one.
-5. Check which addresses are switched on. In the Worker's **Settings → Domains &
+6. Check which addresses are switched on. In the Worker's **Settings → Domains &
    Routes**, the **workers.dev** address should be enabled and **Preview URLs** should
-   be disabled. On the first real install the workers.dev address was off and Preview
-   URLs were on, and both had to be changed by hand. A preview address serves older
+   be disabled. `wrangler.jsonc` sets both on every deploy, so this is a check and
+   should need no change. On the first real install, before the configuration set
+   them, the workers.dev address was off and Preview URLs were on. A preview address serves older
    and unreleased versions of the Worker with the same secrets, for the same reason
-   given in step 4.
-6. Note the Worker's address. Tasks B and D need it.
+   given in step 5.
+7. Note the Worker's address. Tasks B and D need it.
 
 Do not put Cloudflare Access in front of this Worker. Claude's servers call it
 directly, so it has to be reachable from the internet; it protects itself by requiring
@@ -59,8 +67,9 @@ a Google sign-in.
 Sources: developers.cloudflare.com/workers/ci-cd/builds/ ;
 developers.cloudflare.com/workers/wrangler/configuration/ (Automatic provisioning,
 `workers_dev`, `preview_urls`)
-Verified: executed 2026-11-15 by the owner (one install), through step 5. The
-dashboard labels in step 5 are as the owner described them, not re-read in the docs.
+Verified: executed 2026-11-15 by the owner (one install). Step 1 was missed the first
+time, and merges did not build until it was done. The dashboard and GitHub labels in
+steps 1 and 6 are as the owner described them, not re-read in the docs.
 
 ## B. Create the Google app
 
@@ -76,7 +85,9 @@ client whose redirect address is your Worker's address followed by `/callback`.
    is used only to list the sheets the connector can already reach.
 3. **Google Auth Platform → Branding**: give the app a name and your support email.
    **Audience**: choose **External**, and add your own Google account under **Test
-   users**.
+   users**. It must be the exact account you will sign in with in task D. If it is
+   missing, Google stops the sign-in with "Access blocked: ... has not completed the
+   Google verification process" and error 403 `access_denied`.
 4. **Data Access → Add or remove scopes**: add `openid` and
    `https://www.googleapis.com/auth/drive.file`. Add nothing else.
 5. **Clients → Create client**: type **Web application**. Under **Authorized redirect
@@ -86,7 +97,8 @@ client whose redirect address is your Worker's address followed by `/callback`.
 Sources: developers.google.com/workspace/drive/api/guides/api-specific-auth ;
 developers.google.com/workspace/sheets/api/scopes ;
 developers.google.com/identity/protocols/oauth2
-Verified: not executed.
+Verified: executed 2026-11-15 by the owner (one install). The first sign-in was refused
+until the signing-in account was added as a test user, as step 3 now warns.
 
 ## C. Give the Worker its three secrets
 
@@ -107,7 +119,8 @@ If you ever replace `TOKEN_ENCRYPTION_KEY`, the stored Google access can no long
 read, and you reconnect the connector in Claude to store it again.
 
 Sources: developers.cloudflare.com/workers/configuration/secrets/
-Verified: not executed.
+Verified: executed 2026-11-15 by the owner (one install). The check in **Verify** was
+not reported separately; the sign-in in task D worked, which needs all three secrets.
 
 ## D. Add the connector to Claude
 
@@ -129,7 +142,9 @@ The first Google account to sign in becomes the only account this deployment ser
 A different account is refused from then on.
 
 Sources: claude.com/docs/connectors/custom/remote-mcp
-Verified: not executed.
+Verified: executed 2026-11-15 by the owner (one install): Claude shows the connector as
+connected. The first attempt found a fault in the connector's own page, since fixed.
+The check of the Google account's third-party connections page was not reported.
 
 ## E. Prove what it can and cannot reach
 
@@ -148,7 +163,9 @@ write a sheet, and cannot read a sheet it was not given.
    tells you to delete it in Google Sheets yourself.
 
 Sources: this repository's `src/tools.ts`
-Verified: not executed.
+Verified: executed 2026-11-15 by the owner (one install). All four steps ended as
+described. In step 3 Claude also told the owner to share the sheet through a settings
+page that does not exist; the connector's wording was changed to stop that.
 
 ## F. Test whether a Claude Project keeps its instructions to itself
 
@@ -170,9 +187,9 @@ this test needs no code.
 
 Sources: support.claude.com, "Use Claude's chat search and memory to build on previous
 context"
-Verified: executed 2026-11-15 by the owner, from a chat outside any Project only. The
-phrase stayed hidden. That chat did hold other notes about the Project, which
-`decisions/0002` records. The check from inside a second Project was not reported.
+Verified: executed 2026-11-15 by the owner, from a chat outside any Project and from
+inside a second Project. The phrase stayed hidden both times. The outside chat did
+hold other notes about the first Project, which `decisions/0002` records.
 
 ## G. Before real use: take the Google app out of testing
 
