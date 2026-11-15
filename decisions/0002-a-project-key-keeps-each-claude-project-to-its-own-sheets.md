@@ -24,7 +24,9 @@ on, Claude is asked to read the Project's sheet and the server refuses.
 | Each claude.ai Project has its own memory, kept apart from other Projects and from chats outside Projects. | Something Claude learned inside a Project is not offered to other chats through memory. | Claude help center, "Use Claude's chat search and memory", search summary 2026-11-15 |
 | Claude's search of past chats stays inside one Project, or covers only chats outside Projects. | A key that appeared in a Project chat is not found by a search from elsewhere. | Same |
 | A Project's instructions and knowledge are given to chats in that Project. | A key placed there is present in every chat in the Project. | Claude help center, "What are projects" |
-| No source checked says outright that a Project's instructions are withheld from chats outside it. | The design rests on this. The proof must test it directly. | Gap found 2026-11-15 |
+| No source checked says outright that a Project's instructions are withheld from chats outside it. | The design rests on this, so it was tested directly: next row. | Gap found 2026-11-15 |
+| A made-up phrase placed in one Project's instructions could not be seen from a chat outside any Project. Claude said the Project's instructions were not visible to it there. | The assumption held in the one case tried. | Owner's test, runbook task F, 2026-11-15 |
+| In that same outside chat, Claude said it did hold some notes about the Project, which did not include the phrase. | Something about a Project's chats can reach chats outside it through memory, so memory is not a wall. A key must never be something Claude would write into a memory note. | Same test |
 
 ## Decision
 
@@ -46,6 +48,12 @@ on, Claude is asked to read the Project's sheet and the server refuses.
 
 It enforces that a chat without the key cannot reach the group's sheets, because the
 refusal happens on the server and no wording in a chat can talk it round.
+
+The owner's test on 2026-11-15 showed an outside chat holding notes about a Project,
+though not its instructions. A key travels in the details of each tool call, so it is
+possible, and untested, that Claude could carry one into a memory note that other
+chats can read. Until that is tested, treat the key as something that could leak
+within the owner's own account, and replace it if it ever appears outside its Project.
 
 It does not protect a group from the Project that holds its key. Text inside a sheet
 or a document could instruct Claude to misuse the sheets of that same Project, or to
