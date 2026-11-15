@@ -1,102 +1,78 @@
 import type { AppEnv } from "./env";
+import { beginFlow, finishFlow, type PageResponse, postedFromThisSite } from "./flow";
 import { createSheetsApi, exchangePickCode, type Fetcher, GoogleError, googlePickUrl } from "./google";
-import { messagePage, pickPage, pickResultPage } from "./pages";
-import { getDeploymentOwner, getGoogleAccessToken, savePick, takePick } from "./store";
+import { assignSheet, listGroups } from "./groups";
+import { messagePage, pickPage, pickResultPage, signInPage } from "./pages";
+import { hasOwnerSession } from "./session";
+import { getDeploymentOwner, getGoogleAccessToken } from "./store";
 
 /**
  * Handing an existing sheet to the connector. Google's own picker does the choosing, as
  * part of its consent screen, and sends the browser back with the ids that were picked.
  *
- * Nothing from the pick is stored. Google records the grant against the account and this
- * app, so the access stored at sign-in covers the picked sheets from then on. That is also
- * how the account is checked: a sheet picked with some other Google account stays out of
- * reach of the stored access, and is reported as not added.
+ * No Google token from the pick is stored. Google records the grant against the account
+ * and this app, so the access stored at sign-in covers the picked sheets from then on.
+ * That is also how the account is checked: a sheet picked with some other Google account
+ * stays out of reach of the stored access, and is reported as not added.
+ *
+ * What is stored is which group each picked sheet joins, so only the owner may pick.
  */
 
 export const PICK_STATE_PREFIX = "pick.";
-const COOKIE_PREFIX = "__Host-pick-";
 const SHEET_ID = /^[A-Za-z0-9_-]{10,200}$/;
 const MAX_PICKED = 50;
 
 const googleFetch: Fetcher = (input, init) => fetch(input, init);
-
-function base64url(bytes: Uint8Array): string {
-  let binary = "";
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-
-async function sha256(text: string): Promise<string> {
-  return base64url(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text))));
-}
-
-function readCookie(request: Request, name: string): string | undefined {
-  for (const part of (request.headers.get("Cookie") ?? "").split(";")) {
-    const index = part.indexOf("=");
-    if (index !== -1 && part.slice(0, index).trim() === name) return part.slice(index + 1).trim();
-  }
-  return undefined;
-}
-
-const cookie = (name: string, value: string, maxAge: number) =>
-  `${name}=${value}; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=${maxAge}`;
-
-export interface PickResponse {
-  status: number;
-  body?: string;
-  location?: string;
-  setCookie?: string;
-}
+const notFromHere: PageResponse = {
+  status: 403,
+  body: messagePage("This request did not come from the pick page", "Open the pick page and try again."),
+};
 
 /** GET /pick: say what picking does, and the delete limit, before anything goes to Google. */
-export function showPick(): PickResponse {
-  return { status: 200, body: pickPage() };
+export async function showPick(request: Request, env: AppEnv): Promise<PageResponse> {
+  if (!(await hasOwnerSession(request, env))) return { status: 200, body: signInPage("/pick") };
+  return { status: 200, body: pickPage(await listGroups(env)) };
 }
 
-/** POST /pick: send the browser to Google's picker, remembering that this browser asked. */
-export async function startPick(request: Request, env: AppEnv): Promise<PickResponse> {
-  const fetchSite = request.headers.get("Sec-Fetch-Site");
-  const origin = request.headers.get("Origin");
-  const self = new URL(request.url).origin;
-  if ((fetchSite && fetchSite !== "same-origin") || (origin && origin !== self)) {
-    return { status: 403, body: messagePage("This request did not come from the pick page", "Open the pick page and try again.") };
+/** POST /pick: send the browser to Google's picker, remembering which group was chosen. */
+export async function startPick(request: Request, env: AppEnv): Promise<PageResponse> {
+  if (!postedFromThisSite(request)) return notFromHere;
+  if (!(await hasOwnerSession(request, env))) return { status: 401, body: signInPage("/pick") };
+  const groupId = String((await request.formData()).get("group") ?? "");
+  if (!(await listGroups(env)).some((g) => g.id === groupId)) {
+    return { status: 400, body: messagePage("Choose a group first", "Open the pick page and choose which group the sheets should join.") };
   }
-  const state = PICK_STATE_PREFIX + base64url(crypto.getRandomValues(new Uint8Array(32)));
-  const verifier = base64url(crypto.getRandomValues(new Uint8Array(48)));
-  const stateHash = await sha256(state);
-  await savePick(env, stateHash, verifier);
+  const flow = await beginFlow(env, PICK_STATE_PREFIX, { groupId });
   return {
     status: 302,
     location: googlePickUrl({
       clientId: env.GOOGLE_CLIENT_ID,
-      redirectUri: `${self}/callback`,
-      state,
-      codeChallenge: await sha256(verifier),
+      redirectUri: `${new URL(request.url).origin}/callback`,
+      state: flow.state,
+      codeChallenge: flow.challenge,
     }),
-    setCookie: cookie(COOKIE_PREFIX + stateHash.slice(0, 16), stateHash, 600),
+    setCookies: [flow.setCookie],
   };
 }
 
-/** GET /callback with a pick's state: check which of the picked sheets are now reachable. */
-export async function finishPick(request: Request, env: AppEnv): Promise<PickResponse> {
+/** GET /callback with a pick's state: add the picked sheets the connected account can reach. */
+export async function finishPick(request: Request, env: AppEnv): Promise<PageResponse> {
+  const flow = await finishFlow<{ groupId: string }>(request, env);
+  if (!flow.ok) {
+    return flow.reason === "other_browser"
+      ? { status: 400, body: messagePage("This pick was not started in this browser", "Open the pick page and start again.") }
+      : {
+          status: 400,
+          setCookies: flow.clearCookie ? [flow.clearCookie] : [],
+          body: messagePage("This pick expired or was already used", "Open the pick page and start again."),
+        };
+  }
+  const clear = [flow.clearCookie];
+  if (!(await hasOwnerSession(request, env))) return { status: 401, setCookies: clear, body: signInPage("/pick") };
+
   const url = new URL(request.url);
-  const state = url.searchParams.get("state") ?? "";
-  const stateHash = await sha256(state);
-  const cookieName = COOKIE_PREFIX + stateHash.slice(0, 16);
-  const clear = cookie(cookieName, "", 0);
-
-  if (readCookie(request, cookieName) !== stateHash) {
-    return { status: 400, body: messagePage("This pick was not started in this browser", "Open the pick page and start again.") };
-  }
-  const verifier = await takePick(env, stateHash);
-  if (verifier === null) {
-    return { status: 400, setCookie: clear, body: messagePage("This pick expired or was already used", "Open the pick page and start again.") };
-  }
-
   const code = url.searchParams.get("code");
-  if (url.searchParams.get("error") || !code) {
-    return { status: 200, setCookie: clear, body: pickResultPage([], 0) };
-  }
+  if (url.searchParams.get("error") || !code) return { status: 200, setCookies: clear, body: pickResultPage("", [], 0) };
 
   try {
     await exchangePickCode(googleFetch, {
@@ -104,24 +80,17 @@ export async function finishPick(request: Request, env: AppEnv): Promise<PickRes
       clientSecret: env.GOOGLE_CLIENT_SECRET,
       redirectUri: `${url.origin}/callback`,
       code,
-      codeVerifier: verifier,
+      codeVerifier: flow.verifier,
     });
   } catch (error) {
     const message = error instanceof GoogleError ? error.message : "The pick could not be completed.";
-    return { status: 502, setCookie: clear, body: messagePage("The pick did not finish", message) };
+    return { status: 502, setCookies: clear, body: messagePage("The pick did not finish", message) };
   }
 
   const owner = await getDeploymentOwner(env);
-  if (owner === null) {
-    return {
-      status: 409,
-      setCookie: clear,
-      body: messagePage(
-        "Connect the connector in Claude first",
-        "Nobody has connected this connector yet, so there is no account to give the sheet to. " +
-          "Add it in Claude's connector settings, sign in, then pick again.",
-      ),
-    };
+  const group = (await listGroups(env)).find((g) => g.id === flow.data.groupId);
+  if (owner === null || !group) {
+    return { status: 409, setCookies: clear, body: messagePage("That group no longer exists", "Open the pick page and start again.") };
   }
 
   const picked = (url.searchParams.get("picked_file_ids") ?? "")
@@ -138,10 +107,12 @@ export async function finishPick(request: Request, env: AppEnv): Promise<PickRes
       continue;
     }
     try {
-      added.push((await api.describe(id)).title);
+      const { title } = await api.describe(id);
+      await assignSheet(env, id, group.id);
+      added.push(title);
     } catch {
       notAdded += 1;
     }
   }
-  return { status: 200, setCookie: clear, body: pickResultPage(added, notAdded) };
+  return { status: 200, setCookies: clear, body: pickResultPage(group.name, added, notAdded) };
 }

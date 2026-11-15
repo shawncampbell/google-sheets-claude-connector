@@ -1,6 +1,6 @@
 # 0001: Build our own connector on Google's per-file permission, one deployment per person
 
-**Status:** proposed, 2026-11-15. Drafted by the agent for the owner to accept.
+**Status:** accepted by the owner, 2026-11-15.
 **Reversible?** costly. The code is small, but a repository, a Cloudflare account and
 a Google Cloud project are set up around this choice.
 **Revisit when:** Google's own Sheets connector can be granted per-file access only,

@@ -1,8 +1,11 @@
 import { AuthorizationError, authorizationErrorRedirect } from "@cloudflare/workers-oauth-provider";
 import type { AppEnv, AuthProps } from "./env";
 import { exchangeCode, GoogleError, googleAuthorizeUrl } from "./google";
-import { consentPage, homePage, htmlHeaders, messagePage } from "./pages";
-import { finishPick, PICK_STATE_PREFIX, type PickResponse, showPick, startPick } from "./pick";
+import { consentPage, homePage, htmlHeaders, messagePage, privacyPage } from "./pages";
+import type { PageResponse } from "./flow";
+import { addGroup, newKey, placeSheet, showManage } from "./manage";
+import { finishPick, PICK_STATE_PREFIX, showPick, startPick } from "./pick";
+import { finishOwnerSignIn, OWNER_STATE_PREFIX, signOut, startOwnerSignIn } from "./session";
 import { claimDeployment, saveGoogleAccess } from "./store";
 
 function html(body: string, status = 200, headers = new Headers()): Response {
@@ -14,10 +17,13 @@ function redirect(location: string, headers = new Headers()): Response {
   return new Response(null, { status: 302, headers });
 }
 
-function fromPick(result: PickResponse): Response {
+function fromPage(result: PageResponse): Response {
   const headers = new Headers();
-  if (result.setCookie) headers.append("Set-Cookie", result.setCookie);
-  if (result.location) return redirect(result.location, headers);
+  for (const value of result.setCookies ?? []) headers.append("Set-Cookie", value);
+  if (result.location) {
+    headers.set("Location", result.location);
+    return new Response(null, { status: result.status === 303 ? 303 : 302, headers });
+  }
   return html(result.body ?? "", result.status, headers);
 }
 
@@ -123,7 +129,9 @@ export const authHandler = {
     const { pathname } = new URL(request.url);
     try {
       if (pathname === "/" && request.method === "GET") return html(homePage());
-      if (pathname === "/authorize" || pathname === "/callback" || pathname === "/pick") {
+      if (pathname === "/privacy" && request.method === "GET") return html(privacyPage());
+      const ownPage = pathname === "/pick" || pathname === "/manage" || pathname.startsWith("/manage/");
+      if (pathname === "/authorize" || pathname === "/callback" || ownPage) {
         if (!isConfigured(env)) {
           return html(
             messagePage(
@@ -134,14 +142,26 @@ export const authHandler = {
             503,
           );
         }
-        if (pathname === "/authorize" && request.method === "GET") return await showConsent(request, env);
-        if (pathname === "/authorize" && request.method === "POST") return await startGoogleSignIn(request, env);
-        if (pathname === "/pick" && request.method === "GET") return fromPick(showPick());
-        if (pathname === "/pick" && request.method === "POST") return fromPick(await startPick(request, env));
-        if (pathname === "/callback" && request.method === "GET") {
-          // Google sends sign-ins and picks back to the same address; the state says which.
+        const get = request.method === "GET";
+        const post = request.method === "POST";
+        if (pathname === "/authorize" && get) return await showConsent(request, env);
+        if (pathname === "/authorize" && post) return await startGoogleSignIn(request, env);
+        if (pathname === "/pick" && get) return fromPage(await showPick(request, env));
+        if (pathname === "/pick" && post) return fromPage(await startPick(request, env));
+        if (pathname === "/manage" && get) return fromPage(await showManage(request, env));
+        if (pathname === "/manage/groups" && post) return fromPage(await addGroup(request, env));
+        if (pathname === "/manage/key" && post) return fromPage(await newKey(request, env));
+        if (pathname === "/manage/sheets" && post) return fromPage(await placeSheet(request, env));
+        if (pathname === "/manage/sign-out" && post) return fromPage(await signOut(request, env));
+        if (pathname === "/manage/sign-in" && post) {
+          const returnTo = String((await request.formData()).get("return") ?? "/manage");
+          return fromPage(await startOwnerSignIn(request, env, returnTo));
+        }
+        if (pathname === "/callback" && get) {
+          // Google sends every kind of trip back to the same address; the state says which.
           const state = new URL(request.url).searchParams.get("state") ?? "";
-          if (state.startsWith(PICK_STATE_PREFIX)) return fromPick(await finishPick(request, env));
+          if (state.startsWith(PICK_STATE_PREFIX)) return fromPage(await finishPick(request, env));
+          if (state.startsWith(OWNER_STATE_PREFIX)) return fromPage(await finishOwnerSignIn(request, env));
           return await finishGoogleSignIn(request, env);
         }
       }

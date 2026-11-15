@@ -1,7 +1,7 @@
 # 0002: A project key keeps each Claude Project to its own sheets
 
-**Status:** accepted by the owner, 2026-11-15, after the test in runbook task F. Not yet
-built.
+**Status:** accepted by the owner, 2026-11-15, after the test in runbook task F. Built
+the same day; not yet run against a real account.
 **Reversible?** yes. It is a rule inside our own server and can be replaced.
 **Revisit when:** Claude tells a connector which Project a request comes from, or lets
 a connector be switched on for one Project only.
@@ -80,3 +80,17 @@ it themselves by pasting a key into another chat.
   call. That is acceptable because of point 5, and the pages that show a key say so.
 - If the proof shows Project instructions reach chats outside the Project, this
   decision is rejected and the limit falls back to approving calls by hand.
+
+## How it was built (2026-11-15)
+
+- The owner manages groups on the Worker's `/manage` page, after a Google sign-in that
+  asks only who they are. Only the account the deployment serves gets in.
+- A sheet made by a tool call joins the group of the key that call carried. A picked
+  sheet joins the group chosen on the `/pick` page, which now also needs that sign-in.
+- A sheet in another group and a sheet never handed over are refused in the same
+  words, so a chat cannot learn that another group's sheet exists.
+- The text the owner pastes into a Project tells Claude never to repeat the key and
+  never to save it to memory. That is a request to Claude, not a limit.
+- Groups and their sheets are kept in Workers KV, which can take up to a minute to
+  show a change everywhere. A sheet could be refused briefly just after it is created
+  or moved. If that happens in practice, the store should change.

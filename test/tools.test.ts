@@ -2,7 +2,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { describe, expect, it } from "vitest";
 import { GoogleError, type SheetsApi } from "../src/google";
-import { buildServer } from "../src/tools";
+import { buildServer, type GroupAccess } from "../src/tools";
 
 function fakeApi(overrides: Partial<SheetsApi> = {}): SheetsApi {
   const unused = async () => {
@@ -11,9 +11,22 @@ function fakeApi(overrides: Partial<SheetsApi> = {}): SheetsApi {
   return { create: unused, list: unused, describe: unused, read: unused, write: unused, append: unused, ...overrides };
 }
 
-async function connect(api: SheetsApi) {
+const KEY = "sheets-key-for-project-a";
+const SHEET = "abcdefghij1234567890";
+
+/** One group, reached by KEY, holding SHEET. `assigned` records what create_sheet adds. */
+function fakeGroups(assigned: Array<[string, string]> = []): GroupAccess {
+  return {
+    groupForKey: async (key) => (key === KEY ? { id: "group-a", name: "Project A" } : null),
+    groupOfSheet: async (id) => (id === SHEET ? "group-a" : id === "sheet-in-group-b-0123456789" ? "group-b" : null),
+    assignSheet: async (sheetId, groupId) => void assigned.push([sheetId, groupId]),
+    sheetsInGroup: async (groupId) => new Set(groupId === "group-a" ? [SHEET] : []),
+  };
+}
+
+async function connect(api: SheetsApi, groups: GroupAccess = fakeGroups()) {
   const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
-  await buildServer(api, "https://connector.example").connect(serverSide);
+  await buildServer(api, "https://connector.example", groups).connect(serverSide);
   const client = new Client({ name: "test", version: "0" });
   await client.connect(clientSide);
   return client;
@@ -52,7 +65,7 @@ describe("the connector's tools", () => {
         },
       }),
     );
-    const result = await client.callTool({ name: "read_sheet", arguments: { spreadsheet_id: "abcdefghij1234567890", range: "A1" } });
+    const result = await client.callTool({ name: "read_sheet", arguments: { project_key: KEY, spreadsheet_id: SHEET, range: "A1" } });
     expect(result.isError).toBe(true);
     expect(text(result)).toContain("https://connector.example/pick");
   });
@@ -64,15 +77,15 @@ describe("the connector's tools", () => {
         read: async (_id, range) => ({ range, values: [["a"]] }),
       }),
     );
-    const described = await client.callTool({ name: "read_sheet", arguments: { spreadsheet_id: "abcdefghij1234567890" } });
+    const described = await client.callTool({ name: "read_sheet", arguments: { project_key: KEY, spreadsheet_id: SHEET } });
     expect(JSON.parse(text(described)).tabs[0].title).toBe("Sheet1");
-    const read = await client.callTool({ name: "read_sheet", arguments: { spreadsheet_id: "abcdefghij1234567890", range: "Sheet1!A1" } });
+    const read = await client.callTool({ name: "read_sheet", arguments: { project_key: KEY, spreadsheet_id: SHEET, range: "Sheet1!A1" } });
     expect(JSON.parse(text(read))).toEqual({ range: "Sheet1!A1", values: [["a"]] });
   });
 
   it("refuses a link where an id is expected", async () => {
     const client = await connect(fakeApi());
-    const result = await client.callTool({ name: "read_sheet", arguments: { spreadsheet_id: "https://example.com/spreadsheets/d/abc/edit" } });
+    const result = await client.callTool({ name: "read_sheet", arguments: { project_key: KEY, spreadsheet_id: "https://example.com/spreadsheets/d/abc/edit" } });
     expect(result.isError).toBe(true);
   });
 
@@ -84,8 +97,77 @@ describe("the connector's tools", () => {
         },
       }),
     );
-    const result = await client.callTool({ name: "write_range", arguments: { spreadsheet_id: "abcdefghij1234567890", range: "A1", values: [["x"]] } });
+    const result = await client.callTool({ name: "write_range", arguments: { project_key: KEY, spreadsheet_id: SHEET, range: "A1", values: [["x"]] } });
     expect(result.isError).toBe(true);
     expect(text(result)).toContain("cannot reach that sheet");
+  });
+
+  describe("project keys", () => {
+    const untouched = () =>
+      fakeApi({
+        create: async () => {
+          throw new Error("Google must not be asked");
+        },
+      });
+
+    it("refuses every tool when the call carries no key, without asking Google anything", async () => {
+      const client = await connect(untouched());
+      for (const [name, args] of [
+        ["create_sheet", { title: "x" }],
+        ["list_sheets", {}],
+        ["read_sheet", { spreadsheet_id: SHEET }],
+        ["write_range", { spreadsheet_id: SHEET, range: "A1", values: [["x"]] }],
+        ["append_rows", { spreadsheet_id: SHEET, range: "A1", values: [["x"]] }],
+      ] as const) {
+        const result = await client.callTool({ name, arguments: args });
+        expect(result.isError, name).toBe(true);
+        expect(text(result), name).toContain("no valid project key");
+        expect(text(result), name).toContain("https://connector.example/manage");
+      }
+    });
+
+    it("refuses a wrong key the same way", async () => {
+      const client = await connect(untouched());
+      const result = await client.callTool({ name: "list_sheets", arguments: { project_key: "sheets-key-wrong" } });
+      expect(text(result)).toContain("no valid project key");
+    });
+
+    it("refuses a sheet in another group, or in no group, before asking Google", async () => {
+      const client = await connect(untouched());
+      for (const id of ["sheet-in-group-b-0123456789", "sheet-in-no-group-0123456789"]) {
+        const result = await client.callTool({ name: "read_sheet", arguments: { project_key: KEY, spreadsheet_id: id } });
+        expect(result.isError).toBe(true);
+        expect(text(result)).toContain("cannot reach that sheet");
+      }
+    });
+
+    it("puts a newly created sheet in the key's group", async () => {
+      const assigned: Array<[string, string]> = [];
+      const client = await connect(
+        fakeApi({ create: async (title) => ({ spreadsheetId: "new-sheet-0123456789", url: "u", title }) }),
+        fakeGroups(assigned),
+      );
+      const result = await client.callTool({ name: "create_sheet", arguments: { project_key: KEY, title: "Log" } });
+      expect(JSON.parse(text(result)).group).toBe("Project A");
+      expect(assigned).toEqual([["new-sheet-0123456789", "group-a"]]);
+    });
+
+    it("lists only the sheets in the key's group", async () => {
+      const client = await connect(
+        fakeApi({
+          list: async () => [
+            { spreadsheetId: SHEET, title: "Mine", modifiedTime: "t" },
+            { spreadsheetId: "sheet-in-group-b-0123456789", title: "Other project's", modifiedTime: "t" },
+          ],
+        }),
+      );
+      const result = await client.callTool({ name: "list_sheets", arguments: { project_key: KEY } });
+      expect(JSON.parse(text(result)).sheets.map((s: { title: string }) => s.title)).toEqual(["Mine"]);
+    });
+
+    it("tells Claude never to repeat a key or save it to memory", async () => {
+      const client = await connect(fakeApi());
+      expect(client.getInstructions()).toContain("Never repeat a key in a reply, and never save one to memory");
+    });
   });
 });

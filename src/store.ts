@@ -45,6 +45,22 @@ export async function takePick(env: AppEnv, stateHash: string): Promise<string |
   return decrypt(env.TOKEN_ENCRYPTION_KEY, sealed, pickKey(stateHash));
 }
 
+const sessionKey = (tokenHash: string) => `connector:session:${tokenHash}`;
+export const SESSION_SECONDS = 1800;
+
+/** Remembers that a browser signed in as this account, for half an hour. Only a hash of its token is kept. */
+export async function saveSession(env: AppEnv, tokenHash: string, sub: string): Promise<void> {
+  await env.OAUTH_KV.put(sessionKey(tokenHash), sub, { expirationTtl: SESSION_SECONDS });
+}
+
+export function readSession(env: AppEnv, tokenHash: string): Promise<string | null> {
+  return env.OAUTH_KV.get(sessionKey(tokenHash));
+}
+
+export async function endSession(env: AppEnv, tokenHash: string): Promise<void> {
+  await env.OAUTH_KV.delete(sessionKey(tokenHash));
+}
+
 export async function saveGoogleAccess(
   env: AppEnv,
   sub: string,

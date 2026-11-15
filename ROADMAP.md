@@ -2,9 +2,9 @@
 
 ## Now
 
-- Hand an existing sheet to the connector through Google's file picker
-  (https://github.com/shawncampbell/google-sheets-claude-connector/pull/7)
-- Run the last install runbook task, taking the Google app out of testing
+- Keep each Claude Project to its own sheets with a project key
+  (https://github.com/shawncampbell/google-sheets-claude-connector/pull/8)
+- Run the install runbook tasks not yet run: G, H and I
 
 ## Next
 
