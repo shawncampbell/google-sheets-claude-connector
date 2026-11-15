@@ -40,6 +40,11 @@ All notable changes to this project are recorded here. The format follows
   lists every sheet it can reach, where each is, and a note on what it is for. Claude
   can give a one-line purpose when it creates a sheet, which becomes the first note.
 
+- A tool for structure and formatting. Claude can now add, rename and remove tabs,
+  insert and remove rows and columns, set dropdowns, format cells, and add conditional
+  formatting, filters, named ranges and charts. It still cannot delete, share or move
+  a spreadsheet file.
+
 ### Changed
 
 - A call with no project key is no longer refused. It reaches only the sheets open to

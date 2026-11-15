@@ -8,7 +8,7 @@ function fakeApi(overrides: Partial<SheetsApi> = {}): SheetsApi {
   const unused = async () => {
     throw new Error("not expected in this test");
   };
-  return { create: unused, list: unused, describe: unused, read: unused, write: unused, append: unused, clearValues: unused, writeRaw: unused, ...overrides };
+  return { create: unused, list: unused, describe: unused, read: unused, write: unused, append: unused, clearValues: unused, writeRaw: unused, changeStructure: unused, ...overrides };
 }
 
 const KEY = "sheets-key-for-project-a";
@@ -42,17 +42,17 @@ async function connect(api: SheetsApi, groups: GroupAccess = fakeGroups()) {
 const text = (result: unknown) => (result as { content: Array<{ text: string }> }).content[0]!.text;
 
 describe("the connector's tools", () => {
-  it("offers exactly five tools and none that deletes", async () => {
+  it("offers exactly six tools and none that deletes", async () => {
     const client = await connect(fakeApi());
     const { tools } = await client.listTools();
-    expect(tools.map((t) => t.name).sort()).toEqual(["append_rows", "create_sheet", "list_sheets", "read_sheet", "write_range"]);
+    expect(tools.map((t) => t.name).sort()).toEqual(["append_rows", "change_structure", "create_sheet", "list_sheets", "read_sheet", "write_range"]);
     for (const tool of tools) expect(tool.name).not.toMatch(/delete|remove|trash|share|clear/);
   });
 
   it("states the delete limit on every tool that writes, and in the server instructions", async () => {
     const client = await connect(fakeApi());
     const { tools } = await client.listTools();
-    for (const name of ["create_sheet", "write_range", "append_rows"]) {
+    for (const name of ["create_sheet", "write_range", "append_rows", "change_structure"]) {
       expect(tools.find((t) => t.name === name)?.description).toContain("that limit is kept by this server, not by Google");
     }
     expect(client.getInstructions()).toContain("that limit is kept by this server, not by Google");
@@ -80,7 +80,7 @@ describe("the connector's tools", () => {
   it("describes a sheet when read without a range, and reads cells with one", async () => {
     const client = await connect(
       fakeApi({
-        describe: async (id) => ({ spreadsheetId: id, title: "Log", url: "u", tabs: [{ title: "Sheet1", rows: 1000, columns: 26 }] }),
+        describe: async (id) => ({ spreadsheetId: id, title: "Log", url: "u", tabs: [{ title: "Sheet1", sheetId: 0, rows: 1000, columns: 26 }] }),
         read: async (_id, range) => ({ range, values: [["a"]] }),
       }),
     );
@@ -227,6 +227,72 @@ describe("the connector's tools", () => {
       const client = await connect(fakeApi({ create: async (title) => ({ spreadsheetId: "new-sheet-0123456789", url: "u", title }) }));
       await client.callTool({ name: "create_sheet", arguments: { project_key: KEY, title: "Log", purpose: "Books read this year." } });
       expect(created).toEqual([["new-sheet-0123456789", "Books read this year."]]);
+    });
+  });
+
+  describe("structure and formatting", () => {
+    const dropdown = { setDataValidation: { range: { sheetId: 0 }, rule: { condition: { type: "ONE_OF_LIST", values: [{ userEnteredValue: "Open" }] } } } };
+
+    it("passes on a new tab and a dropdown in one call", async () => {
+      const sent: unknown[][] = [];
+      const client = await connect(
+        fakeApi({
+          changeStructure: async (_id, requests) => {
+            sent.push(requests);
+            return { replies: [{ addSheet: { properties: { sheetId: 7 } } }, {}] };
+          },
+        }),
+      );
+      const result = await client.callTool({
+        name: "change_structure",
+        arguments: { project_key: KEY, spreadsheet_id: SHEET, requests: [{ addSheet: { properties: { title: "Notes" } } }, dropdown] },
+      });
+      expect(result.isError).toBeFalsy();
+      expect(sent).toHaveLength(1);
+      expect(JSON.parse(text(result)).replies[0].addSheet.properties.sheetId).toBe(7);
+    });
+
+    it("passes on removing a tab, rows, a range or duplicates, and renaming the file", async () => {
+      const sent: string[] = [];
+      const client = await connect(
+        fakeApi({
+          changeStructure: async (_id, requests) => {
+            sent.push(...requests.map((r) => Object.keys(r as object)[0]!));
+            return { replies: [] };
+          },
+        }),
+      );
+      const names = ["deleteSheet", "deleteDimension", "deleteRange", "deleteDuplicates", "updateSpreadsheetProperties"];
+      const result = await client.callTool({
+        name: "change_structure",
+        arguments: { project_key: KEY, spreadsheet_id: SHEET, requests: names.map((name) => ({ [name]: {} })) },
+      });
+      expect(result.isError).toBeFalsy();
+      expect(sent).toEqual(names);
+    });
+
+    it("has no way to delete, share or move the file itself", async () => {
+      const { ALLOWED_STRUCTURE_REQUESTS } = await import("../src/structure");
+      for (const name of ALLOWED_STRUCTURE_REQUESTS) expect(name).not.toMatch(/spreadsheet$|permission|drive|file|share/i);
+      const client = await connect(fakeApi());
+      const { tools } = await client.listTools();
+      for (const tool of tools) expect(tool.name).not.toMatch(/delete|trash|share|move/);
+    });
+
+    it("refuses a kind of change it does not know, and a request naming two changes", async () => {
+      const client = await connect(fakeApi());
+      const unknown = await client.callTool({ name: "change_structure", arguments: { project_key: KEY, spreadsheet_id: SHEET, requests: [{ somethingNew: {} }] } });
+      expect(text(unknown)).toContain("does not pass on");
+      const two = await client.callTool({ name: "change_structure", arguments: { project_key: KEY, spreadsheet_id: SHEET, requests: [{ addSheet: {}, addChart: {} }] } });
+      expect(text(two)).toContain("exactly one key");
+    });
+
+    it("stays inside the key's reach and never touches the catalog", async () => {
+      const client = await connect(fakeApi());
+      const other = await client.callTool({ name: "change_structure", arguments: { project_key: KEY, spreadsheet_id: "sheet-in-group-b-0123456789", requests: [dropdown] } });
+      expect(text(other)).toContain("cannot reach that sheet");
+      const catalog = await client.callTool({ name: "change_structure", arguments: { spreadsheet_id: CATALOG, requests: [dropdown] } });
+      expect(text(catalog)).toContain("connector's own catalog");
     });
   });
 });

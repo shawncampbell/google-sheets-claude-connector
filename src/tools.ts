@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { GoogleError, type SheetsApi } from "./google";
 import { OPEN, OPEN_NAME } from "./groups";
+import { whyNotAllowed } from "./structure";
 import { DELETE_LIMIT_FOR_MODELS, keyRuleForModels, pickHintForModels, REACH_FOR_MODELS } from "./statement";
 
 export const serverInstructions = (origin: string) =>
@@ -58,8 +59,9 @@ const NOT_IN_GROUP =
 type Scope = { group: { id: string; name: string } | null };
 
 /**
- * The connector's whole surface. There is no tool that deletes, shares, moves or renames
- * a file, and none that removes a tab. Do not add one without a decision record.
+ * The connector's whole surface. There is no tool that deletes, shares or moves a
+ * spreadsheet file. Do not add one without a decision record. Changes inside a file,
+ * including removing tabs and rows, go through an allow-list in structure.ts.
  *
  * A call with a valid project key works in that key's group and in the sheets open to any
  * chat. A call with no key works only in the open sheets. A call with a wrong key is
@@ -209,6 +211,42 @@ export function buildServer(api: SheetsApi, origin: string, groups: GroupAccess)
         await mustHold(scope, spreadsheet_id);
         await mustNotBeCatalog(spreadsheet_id);
         return api.append(spreadsheet_id, range, values);
+      }),
+  );
+
+  server.registerTool(
+    "change_structure",
+    {
+      title: "Change a sheet's structure or formatting",
+      description:
+        "Make structural and formatting changes inside a spreadsheet: add, rename or remove a tab, freeze rows, insert or " +
+        "remove rows and columns, set a dropdown or other data validation, format cells, add conditional formatting, filters, " +
+        "named ranges or charts. " +
+        "Pass `requests` exactly as the Google Sheets API's spreadsheets.batchUpdate takes them: a list of objects, each with " +
+        'one key naming the change, for example {"addSheet": {"properties": {"title": "Notes"}}} or ' +
+        '{"setDataValidation": {"range": {"sheetId": 0, "startRowIndex": 1, "startColumnIndex": 2, "endColumnIndex": 3}, ' +
+        '"rule": {"condition": {"type": "ONE_OF_LIST", "values": [{"userEnteredValue": "Open"}, {"userEnteredValue": "Done"}]}, ' +
+        '"strict": true, "showCustomUi": true}}}. Ranges use a tab\'s numeric sheetId, which read_sheet returns when called with no range. ' +
+        "All the requests in one call succeed or fail together. Before removing a tab or rows that hold data, say what will be " +
+        `removed and make sure the user asked for it. ${DELETE_LIMIT_FOR_MODELS}`,
+      inputSchema: {
+        project_key: projectKey,
+        spreadsheet_id: spreadsheetId,
+        requests: z
+          .array(z.record(z.string(), z.unknown()))
+          .min(1)
+          .max(50)
+          .describe("The batchUpdate requests, each an object with exactly one key."),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
+    },
+    ({ project_key, spreadsheet_id, requests }) =>
+      inScope(project_key, async (scope) => {
+        await mustHold(scope, spreadsheet_id);
+        await mustNotBeCatalog(spreadsheet_id);
+        const refusal = whyNotAllowed(requests);
+        if (refusal !== null) throw new GoogleError(refusal, "bad_request");
+        return api.changeStructure(spreadsheet_id, requests);
       }),
   );
 

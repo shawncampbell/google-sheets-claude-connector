@@ -87,7 +87,7 @@ describe("what is asked of Google when using a sheet", () => {
     expect(calls[1]?.url).toContain("valueInputOption=RAW");
   });
 
-  it("never sends a DELETE and never calls a delete, trash, share or batch-update method from a tool's path", async () => {
+  it("never sends a DELETE and never calls a delete, trash or share method from a tool's path", async () => {
     const { calls, sheets } = api([
       { json: { spreadsheetId: "i", spreadsheetUrl: "u", properties: { title: "t" } } },
       { json: { files: [] } },
@@ -104,7 +104,7 @@ describe("what is asked of Google when using a sheet", () => {
     await sheets.append("id-1", "A1", [[1]]);
     for (const call of calls) {
       expect(["GET", "POST", "PUT"]).toContain(call.method);
-      expect(new URL(call.url).pathname).not.toMatch(/batchUpdate|permissions|trash|:clear|\/copy/);
+      expect(new URL(call.url).pathname).not.toMatch(/permissions|trash|:clear|\/copy/);
     }
   });
 });

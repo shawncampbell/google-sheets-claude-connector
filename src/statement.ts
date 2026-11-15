@@ -3,16 +3,19 @@
  * appear. Change the wording here and the README and SECURITY.md together.
  */
 export const DELETE_LIMIT_FOR_PEOPLE =
-  "This connector has no way to delete a sheet, and it never asks Google to delete one. " +
+  "This connector has no way to delete a spreadsheet file, and it never asks Google to delete one. " +
   "That is a promise kept by this server's code, not a limit Google enforces: the permission " +
-  "you are about to grant includes the right to delete the sheets it covers. Someone who stole " +
-  "this server's stored access could delete those sheets, and only those.";
+  "you are about to grant includes the right to delete the files it covers. Someone who stole " +
+  "this server's stored access could delete those files, and only those. Claude can change " +
+  "what is inside a file, including removing tabs and rows, which you can undo from the " +
+  "file's version history.";
 
 export const DELETE_LIMIT_FOR_MODELS =
-  "This connector cannot delete a sheet and has no tool for it; that limit is kept by this " +
-  "server, not by Google. Writing can overwrite existing cells, which the account holder can " +
-  "undo from the sheet's version history. If the user asks for a sheet to be deleted, tell " +
-  "them to do it in Google Sheets themselves.";
+  "This connector cannot delete a spreadsheet file and has no tool for it; that limit is kept " +
+  "by this server, not by Google. Changes inside a spreadsheet, including overwriting cells " +
+  "and removing tabs or rows, can be undone by the account holder from the file's version " +
+  "history. If the user asks for a whole spreadsheet to be deleted, tell them to do it in " +
+  "Google Sheets themselves.";
 
 export const REACH_FOR_MODELS =
   "It can reach only sheets it created or sheets the account holder picked for it. It cannot " +

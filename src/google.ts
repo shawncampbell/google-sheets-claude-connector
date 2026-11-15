@@ -246,8 +246,10 @@ export interface SheetsApi {
     spreadsheetId: string;
     title: string;
     url: string;
-    tabs: Array<{ title: string; rows: number; columns: number }>;
+    tabs: Array<{ title: string; sheetId: number; rows: number; columns: number }>;
   }>;
+  /** Structural changes. The caller must already have checked every request against the allow-list. */
+  changeStructure(spreadsheetId: string, requests: unknown[]): Promise<{ replies: unknown[] }>;
   read(spreadsheetId: string, range: string): Promise<{ range: string; values: unknown[][] }>;
   write(spreadsheetId: string, range: string, values: unknown[][]): Promise<{ updatedRange: string; updatedCells: number }>;
   append(spreadsheetId: string, range: string, values: unknown[][]): Promise<{ updatedRange: string; updatedRows: number }>;
@@ -308,6 +310,14 @@ export function createSheetsApi(fetcher: Fetcher, getAccessToken: () => Promise<
       }));
     },
 
+    async changeStructure(spreadsheetId, requests) {
+      const done = await call<{ replies?: unknown[] }>(`${sheet(spreadsheetId)}:batchUpdate`, {
+        method: "POST",
+        body: { requests },
+      });
+      return { replies: done.replies ?? [] };
+    },
+
     async clearValues(spreadsheetId, range) {
       await call<unknown>(`${values(spreadsheetId, range)}:clear`, { method: "POST", body: {} });
     },
@@ -317,12 +327,12 @@ export function createSheetsApi(fetcher: Fetcher, getAccessToken: () => Promise<
     },
 
     async describe(spreadsheetId) {
-      const fields = "spreadsheetId,spreadsheetUrl,properties.title,sheets.properties(title,gridProperties)";
+      const fields = "spreadsheetId,spreadsheetUrl,properties.title,sheets.properties(title,sheetId,gridProperties)";
       const found = await call<{
         spreadsheetId: string;
         spreadsheetUrl: string;
         properties: { title: string };
-        sheets?: Array<{ properties: { title: string; gridProperties?: { rowCount?: number; columnCount?: number } } }>;
+        sheets?: Array<{ properties: { title: string; sheetId?: number; gridProperties?: { rowCount?: number; columnCount?: number } } }>;
       }>(`${sheet(spreadsheetId)}?fields=${encodeURIComponent(fields)}`, { method: "GET" });
       return {
         spreadsheetId: found.spreadsheetId,
@@ -330,6 +340,7 @@ export function createSheetsApi(fetcher: Fetcher, getAccessToken: () => Promise<
         url: found.spreadsheetUrl,
         tabs: (found.sheets ?? []).map((s) => ({
           title: s.properties.title,
+          sheetId: s.properties.sheetId ?? 0,
           rows: s.properties.gridProperties?.rowCount ?? 0,
           columns: s.properties.gridProperties?.columnCount ?? 0,
         })),

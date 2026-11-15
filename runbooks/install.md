@@ -4,7 +4,8 @@
 Claude, and prove it can reach only the sheets it was given.
 
 **Before you rely on it, know its one soft limit.** This connector has no way to delete
-a sheet, and it never asks Google to delete one. That is a promise kept by this
+a spreadsheet file, and it never asks Google to delete one. Claude can change what is
+inside a file, including removing tabs and rows, which version history undoes. That is a promise kept by this
 server's code, not a limit Google enforces: the permission you grant includes the right
 to delete the sheets it covers. Someone who stole this server's stored access could
 delete those sheets, and only those.
@@ -325,4 +326,30 @@ each one is, and what it is for, and stays current without any chat maintaining 
    instruction that told Claude to maintain it. The connector does not adopt it.
 
 Sources: this repository's `decisions/0004`
+Verified: not executed as written. The owner merged and used the catalog on
+2026-11-15 and reported no problem, but did not report these steps.
+
+## K. Have Claude set up a sheet's structure
+
+**What it can and cannot remove.** Claude can remove tabs, rows and columns inside a
+sheet, as well as overwrite cells. Google's version history undoes all of that. Claude
+cannot delete the spreadsheet file itself through this connector, which is a promise
+kept by this server's code and not a limit Google enforces.
+
+**Goal.** Claude can turn an empty sheet into a working one, and tidy it, without you
+doing the work by hand.
+
+**Verify.** Steps 1 to 3 succeed and step 4 is declined.
+
+1. In a chat where the connector reaches a sheet, ask Claude to add a tab called
+   "Notes", freeze the first row of the first tab, and make its header bold.
+2. Ask Claude to put a dropdown with the choices Open and Done in a column. Open the
+   sheet: the tab, the frozen bold header and the dropdown are all there.
+3. Ask Claude to delete the "Notes" tab. It says what it is about to remove and does
+   it. In Google Sheets, **File → Version history** shows the tab in an earlier
+   version.
+4. Ask Claude to delete the whole spreadsheet. It declines and tells you to do that
+   in Google Sheets yourself.
+
+Sources: this repository's `decisions/0005` and `src/structure.ts`
 Verified: not executed.

@@ -12,7 +12,9 @@ copy and check it for yourself. The plan is in `ROADMAP.md` and the reasoning is
 
 ## What it will and will not do
 
-- It creates new sheets, reads them, and writes to them.
+- It creates new sheets, reads them, and writes to them. It can also change anything
+  inside a sheet: add, rename or remove tabs, insert or remove rows, set dropdowns,
+  freeze headers, format cells, add filters and charts.
 - It reads and writes a sheet that already exists only after you pick that sheet for
   it, on the connector's own `/pick` page, using Google's file picker.
 - It cannot see any other file in your Google account.
@@ -24,14 +26,14 @@ copy and check it for yourself. The plan is in `ROADMAP.md` and the reasoning is
   a key reaches those sheets and nothing else.
 - If you ask it to, it keeps a catalog: one sheet listing every sheet it can reach,
   where each one is, and a note on what it is for. No chat can write to the catalog.
-- It has no tool that deletes a sheet.
+- It has no tool that deletes, shares or moves a spreadsheet file.
 
 **Read this before relying on the last point.** Google's per-file permission includes
 the right to delete the files it covers. The connector never asks Google to delete
 anything, but that is a promise kept by this server's code, not a limit Google
 enforces. Someone who stole the connector's stored access could delete the sheets you
-granted, and only those. Claude can also overwrite the contents of a sheet it may
-write to, which Google's version history can undo.
+granted, and only those. Claude can also change what is inside a sheet it may write
+to, including removing tabs and rows, which Google's version history can undo.
 
 ## How it is built
 
