@@ -1,4 +1,5 @@
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
+import { getCatalogId, refreshCatalogQuietly } from "./catalog";
 import type { AppEnv, AuthProps } from "./env";
 import { createSheetsApi, type Fetcher } from "./google";
 import { assignSheet, groupForKey, groupOfSheet, sheetsInGroup } from "./groups";
@@ -24,6 +25,10 @@ export const mcpHandler = {
       groupOfSheet: (sheetId) => groupOfSheet(env, sheetId),
       assignSheet: (sheetId, groupId) => assignSheet(env, sheetId, groupId),
       sheetsInGroup: (groupId) => sheetsInGroup(env, groupId),
+      catalogId: () => getCatalogId(env),
+      // After the answer has gone back, so that keeping the catalog never slows a tool call.
+      sheetCreated: (sheetId, purpose) =>
+        ctx.waitUntil(refreshCatalogQuietly(env, api, new Map(purpose ? [[sheetId, purpose]] : []))),
     });
     const transport = new WebStandardStreamableHTTPServerTransport({
       sessionIdGenerator: undefined,

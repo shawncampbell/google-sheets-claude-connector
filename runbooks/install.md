@@ -217,17 +217,16 @@ production**, and the connector still works eight days after you last signed in.
    publish your app, you must complete your configuration on the Branding page".
 3. Reconnect the connector in Claude so a lasting sign-in replaces the seven-day one.
 
-Whether Google then asks for a review, or for proof that you own the domain, for an
-app that requests only these two scopes, has not been confirmed. If it does, stop and
-record what it asked for.
+On the first install Google published the app at once, with no review and no proof of
+the domain, for an app that requests only these two scopes and has no logo.
 
 Sources: developers.google.com/identity/protocols/oauth2 (refresh token expiration) ;
 developers.google.com/identity/protocols/oauth2/production-readiness/brand-verification ;
 support.google.com/cloud/answer/15549049 (search summary only, not read directly)
 Verified: executed 2026-11-15 by the owner (one install): the app is published. The
 first attempt was refused with the message in step 2 while the Branding fields were
-empty. Whether Google asked for a review or proof of the domain was not reported, and
-the eight-day check in **Verify** has not had time to run.
+empty. Google asked for no review and no proof of the domain. The eight-day check in
+**Verify** has not had time to run.
 
 ## H. Hand over a sheet that already exists
 
@@ -299,3 +298,31 @@ Sources: this repository's `decisions/0002`
 Verified: executed 2026-11-15 by the owner (one install), steps 1 to 5 as they were
 before sheets could be opened to any chat; all went as expected. Step 6 is new and has
 not been executed. Step 8 needs a week of use and has not been run.
+
+## J. Keep a catalog of the connector's sheets
+
+**The catalog names every Project's sheets in one place.** It starts out reachable by
+no chat. If you place it in a group or under Any chat, every chat that can read it
+learns the titles of all your other sheets. It is covered by the same permission as
+the rest, which includes deleting it; the connector has no way to delete it, and that
+is this server's promise, not a limit Google enforces.
+
+**Goal.** One sheet in your Drive lists every sheet the connector can reach, where
+each one is, and what it is for, and stays current without any chat maintaining it.
+
+**Verify.** Steps 2 to 4 end as described.
+
+1. On `/manage`, under **Catalog**, select **Create the catalog**. A sheet called
+   "Google Sheets Claude Connector Catalog" appears in your Drive.
+2. Open it from the link on `/manage`. It has one row for each sheet the connector can
+   reach, with its title, link, where it is, and dates.
+3. Type a note in the **Notes** column for one sheet. Then, on `/manage`, move a
+   different sheet to another place. The catalog shows the move, and your note is
+   still there.
+4. In Claude, ask for a new sheet and say what it is for. After a moment the catalog
+   has a row for it, with a note saying what it is for.
+5. If you had a catalog that a chat made by hand, delete or rename it, and remove the
+   instruction that told Claude to maintain it. The connector does not adopt it.
+
+Sources: this repository's `decisions/0004`
+Verified: not executed.

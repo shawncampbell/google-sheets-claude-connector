@@ -111,8 +111,12 @@ what this copy does with data.</p>
   <li>The opaque Google account id.</li>
   <li>The names you give to groups of sheets, which sheet belongs to which group, and a
   fingerprint of each group's key. The keys themselves are not stored.</li>
+  <li>Which sheet is the catalog, if you created one.</li>
   <li>Short-lived records of sign-ins in progress.</li>
 </ul>
+<p>If you create a catalog, the connector writes the titles of your reachable sheets, where
+each is, and any note on what it is for into that one sheet in your own Drive. Those are
+not kept on this server.</p>
 <p>It does not store the contents of any sheet. Cells you read or write pass through it
 on their way between Google and Claude and are not kept.</p>
 <h2>How Google data is used</h2>
@@ -198,8 +202,20 @@ export function managePage(input: {
   open: SheetRow[];
   unplaced: SheetRow[];
   googleFailed: boolean;
+  catalogLink: string | null;
   canAddGroup: boolean;
 }): string {
+  const catalog = `<section><h2>Catalog</h2>
+<p>The catalog is one sheet in your Drive that lists every sheet this connector can reach,
+where each one is, and a note on what it is for. The connector keeps it up to date. No chat
+can write to it, and no chat can read it unless you place it in a group or under ${OPEN_NAME}.
+It names every Project's sheets, so place it with care.</p>
+${
+  input.catalogLink
+    ? `<p><a href="${escape(input.catalogLink)}" rel="noreferrer">Open the catalog in Google Sheets</a></p>
+<form method="post" action="/manage/catalog"><button>Update the catalog now</button></form>`
+    : `<form method="post" action="/manage/catalog"><button>Create the catalog</button> This adds one sheet to your Drive.</form>`
+}</section>`;
   const move = (sheet: SheetRow, label: string) =>
     `<form method="post" action="/manage/sheets"><input type="hidden" name="sheet" value="${escape(sheet.spreadsheetId)}">
 ${escape(sheet.title)} ${groupSelect(input.groups)}<button>${label}</button></form>`;
@@ -229,6 +245,7 @@ ${input.googleFailed ? "<p><strong>Google could not be reached, so sheets are no
 ${groups || "<p>You have no groups yet.</p>"}
 ${open}
 ${unplaced}
+${catalog}
 <section><h2>Add a group</h2>
 ${
   input.canAddGroup

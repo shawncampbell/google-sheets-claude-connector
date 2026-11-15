@@ -1,3 +1,4 @@
+import { refreshCatalogQuietly } from "./catalog";
 import type { AppEnv } from "./env";
 import { beginFlow, finishFlow, type PageResponse, postedFromThisSite } from "./flow";
 import { createSheetsApi, exchangePickCode, type Fetcher, GoogleError, googlePickUrl } from "./google";
@@ -115,5 +116,6 @@ export async function finishPick(request: Request, env: AppEnv): Promise<PageRes
       notAdded += 1;
     }
   }
+  if (added.length) await refreshCatalogQuietly(env, api);
   return { status: 200, setCookies: clear, body: pickResultPage(group.name, added, notAdded, openToAll) };
 }

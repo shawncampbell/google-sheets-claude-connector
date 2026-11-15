@@ -62,6 +62,8 @@ describe("connecting and using the connector, end to end", () => {
   let googleSubject: string;
   /** Sheets the stored account can reach, by id: what Google would allow after a pick. */
   let reachableSheets: Map<string, string>;
+  /** What was last written to each sheet's cells, by id. */
+  let writtenCells: Map<string, unknown[][]>;
 
   const send = (path: string, init?: RequestInit) => worker.fetch(new Request(`${ORIGIN}${path}`, init), env, ctx);
 
@@ -71,6 +73,7 @@ describe("connecting and using the connector, end to end", () => {
     googleCalls = [];
     googleSubject = "google-user-1";
     reachableSheets = new Map();
+    writtenCells = new Map();
     env = {
       OAUTH_KV: kv,
       GOOGLE_CLIENT_ID: "google-client-id",
@@ -92,7 +95,20 @@ describe("connecting and using the connector, end to end", () => {
         });
       }
       if (url === "https://sheets.googleapis.com/v4/spreadsheets") {
-        return Response.json({ spreadsheetId: "new-sheet-id-0123456789", spreadsheetUrl: "https://example.com/sheet", properties: { title: "Reading log" } });
+        const title = (JSON.parse(String(init?.body)) as { properties: { title: string } }).properties.title;
+        const id = title === "Google Sheets Claude Connector Catalog" ? "catalog-sheet-id-0123456789" : "new-sheet-id-0123456789";
+        reachableSheets.set(id, title);
+        return Response.json({ spreadsheetId: id, spreadsheetUrl: "https://example.com/sheet", properties: { title } });
+      }
+      const cells = /^https:\/\/sheets\.googleapis\.com\/v4\/spreadsheets\/([^/?]+)\/values\/([^?:]+)(:clear)?(\?.*)?$/.exec(url);
+      if (cells) {
+        const id = decodeURIComponent(cells[1]!);
+        if (init?.method === "PUT") {
+          writtenCells.set(id, (JSON.parse(String(init.body)) as { values: unknown[][] }).values);
+          return Response.json({ updatedRange: "A1" });
+        }
+        if (cells[3]) return Response.json({});
+        return Response.json({ range: "A2:G", values: (writtenCells.get(id) ?? []).slice(1) });
       }
       if (url.startsWith("https://www.googleapis.com/drive/v3/files?")) {
         return Response.json({ files: [...reachableSheets].map(([id, name]) => ({ id, name, modifiedTime: "2026-01-01T00:00:00Z" })) });
@@ -461,6 +477,56 @@ describe("connecting and using the connector, end to end", () => {
       const foreign = await send("/pick", { method: "POST", headers: { Origin: "https://evil.example", Cookie: cookieHeader(jar) }, body: "decision=pick" });
       expect(foreign.status).toBe(403);
       expect((await send("/pick", form(new Map(), { group: "x" }))).status).toBe(401);
+    });
+  });
+
+  describe("the catalog", () => {
+    const CATALOG = "catalog-sheet-id-0123456789";
+    const rows = () => (writtenCells.get(CATALOG) ?? []) as string[][];
+
+    it("is created only when the owner asks, lists every sheet with where it is, and starts out of every chat's reach", async () => {
+      const call = await claude();
+      const { jar } = await ownerSession();
+      const { key } = await makeGroup(jar, "Reading");
+      await call("create_sheet", { project_key: key, title: "Reading log" });
+      expect(reachableSheets.has(CATALOG)).toBe(false);
+
+      expect((await send("/manage/catalog", form(jar, {}))).status).toBe(303);
+      expect(rows()[0]!.slice(0, 7)).toEqual(["Title", "Link", "Where", "Created", "Last changed", "Notes", "Sheet id"]);
+      expect(rows()[1]!.slice(0, 3)).toEqual(["Reading log", "https://docs.google.com/spreadsheets/d/new-sheet-id-0123456789/edit", "Reading"]);
+      expect(rows().some((r) => r[6] === CATALOG)).toBe(false);
+
+      expect((await call("read_sheet", { spreadsheet_id: CATALOG })).isError).toBe(true);
+      expect((await call("read_sheet", { project_key: key, spreadsheet_id: CATALOG })).isError).toBe(true);
+      const manage = await (await send("/manage", { headers: { Cookie: cookieHeader(jar) } })).text();
+      expect(manage).toContain("(the catalog)");
+      expect(manage).toContain("Open the catalog in Google Sheets");
+    });
+
+    it("follows a sheet when it is moved, and keeps a note the owner wrote", async () => {
+      const call = await claude();
+      const { jar } = await ownerSession();
+      const { key } = await makeGroup(jar, "Reading");
+      await call("create_sheet", { project_key: key, title: "Reading log" });
+      await send("/manage/catalog", form(jar, {}));
+      const edited = rows().map((r) => [...r]);
+      edited[1]![5] = "Books finished, one row each.";
+      writtenCells.set(CATALOG, edited);
+
+      await send("/manage/sheets", form(jar, { sheet: "new-sheet-id-0123456789", group: "open" }));
+      expect(rows()[1]![2]).toBe("Any chat");
+      expect(rows()[1]![5]).toBe("Books finished, one row each.");
+    });
+
+    it("records the purpose Claude gives when it creates a sheet", async () => {
+      const waiting: Promise<unknown>[] = [];
+      (ctx as unknown as { waitUntil: (p: Promise<unknown>) => void }).waitUntil = (p) => void waiting.push(p);
+      const call = await claude();
+      const { jar } = await ownerSession();
+      await send("/manage/catalog", form(jar, {}));
+      await call("create_sheet", { title: "Reading log", purpose: "Books read this year." });
+      await Promise.all(waiting);
+      expect([rows()[1]![0], rows()[1]![2], rows()[1]![5]]).toEqual(["Reading log", "Any chat", "Books read this year."]);
     });
   });
 

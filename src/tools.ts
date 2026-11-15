@@ -40,6 +40,10 @@ export interface GroupAccess {
   groupOfSheet(sheetId: string): Promise<string | null>;
   assignSheet(sheetId: string, groupId: string): Promise<void>;
   sheetsInGroup(groupId: string): Promise<Set<string>>;
+  /** The id of the connector's own catalog sheet, or null when there is none. */
+  catalogId(): Promise<string | null>;
+  /** Called after a sheet is created, so the catalog can be brought up to date. */
+  sheetCreated(sheetId: string, purpose: string | undefined): void;
 }
 
 const fail = (text: string): Result => ({ content: [{ type: "text", text }], isError: true });
@@ -90,6 +94,15 @@ export function buildServer(api: SheetsApi, origin: string, groups: GroupAccess)
     }
   }
 
+  const CATALOG_IS_READ_ONLY =
+    "That sheet is the connector's own catalog. The connector keeps it up to date itself, so it cannot be " +
+    "written through the connector. The account holder can edit its Notes column in Google Sheets.";
+
+  /** Refuses a write to the catalog, which only the connector itself may change. */
+  async function mustNotBeCatalog(sheetId: string): Promise<void> {
+    if ((await groups.catalogId()) === sheetId) throw new GoogleError(CATALOG_IS_READ_ONLY, "bad_request");
+  }
+
   /** Refuses a sheet outside the scope, before anything is asked of Google. */
   async function mustHold(scope: Scope, sheetId: string): Promise<void> {
     const place = await groups.groupOfSheet(sheetId);
@@ -105,13 +118,22 @@ export function buildServer(api: SheetsApi, origin: string, groups: GroupAccess)
       description:
         "Create a new, empty Google Sheet in the account holder's Drive and return its id and link. " +
         `With a project key the new sheet is kept to that key's Project; with no key it is open to any chat on the account. ${DELETE_LIMIT_FOR_MODELS}`,
-      inputSchema: { project_key: projectKey, title: z.string().min(1).max(200).describe("The new sheet's title.") },
+      inputSchema: {
+        project_key: projectKey,
+        title: z.string().min(1).max(200).describe("The new sheet's title."),
+        purpose: z
+          .string()
+          .max(300)
+          .optional()
+          .describe("One plain sentence on what the sheet is for. It is recorded in the account holder's catalog of sheets, if they keep one."),
+      },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     },
-    ({ project_key, title }) =>
+    ({ project_key, title, purpose }) =>
       inScope(project_key, async (scope) => {
         const made = await api.create(title);
         await groups.assignSheet(made.spreadsheetId, scope.group?.id ?? OPEN);
+        groups.sheetCreated(made.spreadsheetId, purpose);
         return scope.group
           ? { ...made, kept_to: scope.group.name }
           : { ...made, open_to: OPEN_NAME, note: `This sheet can be reached from any chat on the account. To keep it to one Project, the account holder moves it at ${origin}/manage.` };
@@ -167,6 +189,7 @@ export function buildServer(api: SheetsApi, origin: string, groups: GroupAccess)
     ({ project_key, spreadsheet_id, range, values }) =>
       inScope(project_key, async (scope) => {
         await mustHold(scope, spreadsheet_id);
+        await mustNotBeCatalog(spreadsheet_id);
         return api.write(spreadsheet_id, range, values);
       }),
   );
@@ -184,6 +207,7 @@ export function buildServer(api: SheetsApi, origin: string, groups: GroupAccess)
     ({ project_key, spreadsheet_id, range, values }) =>
       inScope(project_key, async (scope) => {
         await mustHold(scope, spreadsheet_id);
+        await mustNotBeCatalog(spreadsheet_id);
         return api.append(spreadsheet_id, range, values);
       }),
   );

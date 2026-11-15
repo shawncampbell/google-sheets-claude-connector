@@ -3,7 +3,7 @@ import type { AppEnv, AuthProps } from "./env";
 import { exchangeCode, GoogleError, googleAuthorizeUrl } from "./google";
 import { consentPage, homePage, htmlHeaders, messagePage, privacyPage } from "./pages";
 import type { PageResponse } from "./flow";
-import { addGroup, newKey, placeSheet, showManage } from "./manage";
+import { addGroup, newKey, placeSheet, showManage, updateCatalog } from "./manage";
 import { finishPick, PICK_STATE_PREFIX, showPick, startPick } from "./pick";
 import { finishOwnerSignIn, OWNER_STATE_PREFIX, signOut, startOwnerSignIn } from "./session";
 import { claimDeployment, saveGoogleAccess } from "./store";
@@ -152,6 +152,7 @@ export const authHandler = {
         if (pathname === "/manage/groups" && post) return fromPage(await addGroup(request, env));
         if (pathname === "/manage/key" && post) return fromPage(await newKey(request, env));
         if (pathname === "/manage/sheets" && post) return fromPage(await placeSheet(request, env));
+        if (pathname === "/manage/catalog" && post) return fromPage(await updateCatalog(request, env));
         if (pathname === "/manage/sign-out" && post) return fromPage(await signOut(request, env));
         if (pathname === "/manage/sign-in" && post) {
           const returnTo = String((await request.formData()).get("return") ?? "/manage");

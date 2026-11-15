@@ -234,7 +234,14 @@ const NOT_REACHABLE =
 /** The calls the tools need. Tests replace this with a fake. */
 export interface SheetsApi {
   create(title: string): Promise<{ spreadsheetId: string; url: string; title: string }>;
-  list(): Promise<Array<{ spreadsheetId: string; title: string; modifiedTime: string }>>;
+  list(): Promise<Array<{ spreadsheetId: string; title: string; modifiedTime: string; createdTime: string }>>;
+  /**
+   * For the connector's own catalog sheet only: empty a range of cells, and write values
+   * exactly as given so that a title starting with "=" is never run as a formula. Neither
+   * is offered to Claude as a tool.
+   */
+  clearValues(spreadsheetId: string, range: string): Promise<void>;
+  writeRaw(spreadsheetId: string, range: string, values: unknown[][]): Promise<void>;
   describe(spreadsheetId: string): Promise<{
     spreadsheetId: string;
     title: string;
@@ -286,14 +293,27 @@ export function createSheetsApi(fetcher: Fetcher, getAccessToken: () => Promise<
     async list() {
       const url = new URL(DRIVE_FILES_URL);
       url.searchParams.set("q", `mimeType='${SHEET_MIME}' and trashed=false`);
-      url.searchParams.set("fields", "files(id,name,modifiedTime)");
+      url.searchParams.set("fields", "files(id,name,modifiedTime,createdTime)");
       url.searchParams.set("orderBy", "modifiedTime desc");
       url.searchParams.set("pageSize", "100");
-      const found = await call<{ files?: Array<{ id: string; name: string; modifiedTime: string }> }>(
+      const found = await call<{ files?: Array<{ id: string; name: string; modifiedTime: string; createdTime?: string }> }>(
         url.toString(),
         { method: "GET" },
       );
-      return (found.files ?? []).map((f) => ({ spreadsheetId: f.id, title: f.name, modifiedTime: f.modifiedTime }));
+      return (found.files ?? []).map((f) => ({
+        spreadsheetId: f.id,
+        title: f.name,
+        modifiedTime: f.modifiedTime,
+        createdTime: f.createdTime ?? "",
+      }));
+    },
+
+    async clearValues(spreadsheetId, range) {
+      await call<unknown>(`${values(spreadsheetId, range)}:clear`, { method: "POST", body: {} });
+    },
+
+    async writeRaw(spreadsheetId, range, rows) {
+      await call<unknown>(`${values(spreadsheetId, range)}?valueInputOption=RAW`, { method: "PUT", body: { values: rows } });
     },
 
     async describe(spreadsheetId) {
