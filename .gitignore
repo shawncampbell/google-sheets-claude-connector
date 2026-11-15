@@ -1,0 +1,15 @@
+# Local secrets and instance settings: never committed
+.dev.vars
+.dev.vars.*
+.env
+.env.*
+*.pem
+*.key
+credentials*.json
+client_secret*.json
+token*.json
+
+# Build and tool output
+node_modules/
+.wrangler/
+dist/
