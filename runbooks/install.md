@@ -187,9 +187,9 @@ this test needs no code.
 
 Sources: support.claude.com, "Use Claude's chat search and memory to build on previous
 context"
-Verified: executed 2026-11-15 by the owner, from a chat outside any Project only. The
-phrase stayed hidden. That chat did hold other notes about the Project, which
-`decisions/0002` records. The check from inside a second Project was not reported.
+Verified: executed 2026-11-15 by the owner, from a chat outside any Project and from
+inside a second Project. The phrase stayed hidden both times. The outside chat did
+hold other notes about the first Project, which `decisions/0002` records.
 
 ## G. Before real use: take the Google app out of testing
 

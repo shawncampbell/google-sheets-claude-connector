@@ -26,6 +26,7 @@ on, Claude is asked to read the Project's sheet and the server refuses.
 | A Project's instructions and knowledge are given to chats in that Project. | A key placed there is present in every chat in the Project. | Claude help center, "What are projects" |
 | No source checked says outright that a Project's instructions are withheld from chats outside it. | The design rests on this, so it was tested directly: next row. | Gap found 2026-11-15 |
 | A made-up phrase placed in one Project's instructions could not be seen from a chat outside any Project. Claude said the Project's instructions were not visible to it there. | The assumption held in the one case tried. | Owner's test, runbook task F, 2026-11-15 |
+| The same phrase could not be seen from a chat inside a second Project. Claude said it could not see any other Project's instructions or chats. | The assumption held in the second case too. Both cases the design depends on have now been tried once. | Owner's test, runbook task F, 2026-11-15 |
 | In that same outside chat, Claude said it did hold some notes about the Project, which did not include the phrase. | Something about a Project's chats can reach chats outside it through memory, so memory is not a wall. A key must never be something Claude would write into a memory note. | Same test |
 
 ## Decision
@@ -52,7 +53,9 @@ refusal happens on the server and no wording in a chat can talk it round.
 The owner's test on 2026-11-15 showed an outside chat holding notes about a Project,
 though not its instructions. A key travels in the details of each tool call, so it is
 possible, and untested, that Claude could carry one into a memory note that other
-chats can read. Until that is tested, treat the key as something that could leak
+chats can read. That is the one part of this design still untested, and it can only be tested once
+the key exists: use a key in a Project for a while, then ask for it from outside.
+Until that is tested, treat the key as something that could leak
 within the owner's own account, and replace it if it ever appears outside its Project.
 
 It does not protect a group from the Project that holds its key. Text inside a sheet
