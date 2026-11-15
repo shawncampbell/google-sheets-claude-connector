@@ -2,8 +2,8 @@
 
 ## Now
 
-- A catalog of the connector's sheets, kept by the connector
-  (https://github.com/shawncampbell/google-sheets-claude-connector/pull/10)
+- Let Claude change a sheet's structure and formatting, without removing tabs or rows
+  (https://github.com/shawncampbell/google-sheets-claude-connector/pull/11)
 - After a week of real use, run the last step of runbook task I: ask a chat outside a
   Project for that Project's key
 

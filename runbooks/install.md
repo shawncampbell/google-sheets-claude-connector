@@ -325,4 +325,27 @@ each one is, and what it is for, and stays current without any chat maintaining 
    instruction that told Claude to maintain it. The connector does not adopt it.
 
 Sources: this repository's `decisions/0004`
+Verified: not executed as written. The owner merged and used the catalog on
+2026-11-15 and reported no problem, but did not report these steps.
+
+## K. Have Claude set up a sheet's structure
+
+**What it will not do.** Claude cannot remove a tab, rows or columns, or rename the
+file, through this connector. That is a promise kept by this server's code, as with
+deleting the file itself. Some changes it can make, such as find-and-replace and
+sorting, can still spoil a sheet's contents; Google's version history undoes them.
+
+**Goal.** Claude can turn an empty sheet into a working one without you doing the
+setup by hand.
+
+**Verify.** Steps 1 and 2 succeed and step 3 is declined.
+
+1. In a chat where the connector reaches a sheet, ask Claude to add a tab called
+   "Notes", freeze the first row of the first tab, and make its header bold.
+2. Ask Claude to put a dropdown with the choices Open and Done in a column. Open the
+   sheet: the tab, the frozen bold header and the dropdown are all there.
+3. Ask Claude to delete the "Notes" tab, and then to delete row 5. It declines both
+   and tells you to do them in Google Sheets yourself.
+
+Sources: this repository's `decisions/0005` and `src/structure.ts`
 Verified: not executed.

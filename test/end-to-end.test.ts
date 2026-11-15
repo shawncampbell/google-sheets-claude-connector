@@ -272,7 +272,7 @@ describe("connecting and using the connector, end to end", () => {
     const listed = await mcp({ jsonrpc: "2.0", id: 1, method: "tools/list" });
     expect(listed.status).toBe(200);
     const tools = ((await listed.json()) as { result: { tools: Array<{ name: string }> } }).result.tools;
-    expect(tools.map((t) => t.name).sort()).toEqual(["append_rows", "create_sheet", "list_sheets", "read_sheet", "write_range"]);
+    expect(tools.map((t) => t.name).sort()).toEqual(["append_rows", "change_structure", "create_sheet", "list_sheets", "read_sheet", "write_range"]);
 
     const { key } = await makeGroup((await ownerSession()).jar, "Reading");
     const created = await mcp({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "create_sheet", arguments: { project_key: key, title: "Reading log" } } });

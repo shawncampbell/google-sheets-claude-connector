@@ -12,7 +12,11 @@ copy and check it for yourself. The plan is in `ROADMAP.md` and the reasoning is
 
 ## What it will and will not do
 
-- It creates new sheets, reads them, and writes to them.
+- It creates new sheets, reads them, and writes to them. It can also change a sheet's
+  structure and formatting: add tabs, set dropdowns, freeze headers, format cells, add
+  filters and charts.
+- It cannot remove a tab, rows or columns, or rename the file. Like the delete limit
+  below, that is a promise kept by this server's code.
 - It reads and writes a sheet that already exists only after you pick that sheet for
   it, on the connector's own `/pick` page, using Google's file picker.
 - It cannot see any other file in your Google account.
