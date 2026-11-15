@@ -14,7 +14,7 @@ Google account, and this repository (or your fork of it) on GitHub.
 
 **How to read this.** Each task gives its goal and how to verify it before any steps.
 Dashboards change, so the click-paths below are a guide; if a label has moved, search
-the dashboard for the name in bold and go by the goal. Tasks A and F have been run so far.
+the dashboard for the name in bold and go by the goal. Tasks A to D and F have been run so far.
 When you run a task, update its `Verified:` line.
 
 **Never write a real value from these steps into this repository**: not the Worker's
@@ -97,7 +97,8 @@ client whose redirect address is your Worker's address followed by `/callback`.
 Sources: developers.google.com/workspace/drive/api/guides/api-specific-auth ;
 developers.google.com/workspace/sheets/api/scopes ;
 developers.google.com/identity/protocols/oauth2
-Verified: not executed.
+Verified: executed 2026-11-15 by the owner (one install). The first sign-in was refused
+until the signing-in account was added as a test user, as step 3 now warns.
 
 ## C. Give the Worker its three secrets
 
@@ -118,7 +119,8 @@ If you ever replace `TOKEN_ENCRYPTION_KEY`, the stored Google access can no long
 read, and you reconnect the connector in Claude to store it again.
 
 Sources: developers.cloudflare.com/workers/configuration/secrets/
-Verified: not executed.
+Verified: executed 2026-11-15 by the owner (one install). The check in **Verify** was
+not reported separately; the sign-in in task D worked, which needs all three secrets.
 
 ## D. Add the connector to Claude
 
@@ -140,7 +142,9 @@ The first Google account to sign in becomes the only account this deployment ser
 A different account is refused from then on.
 
 Sources: claude.com/docs/connectors/custom/remote-mcp
-Verified: not executed.
+Verified: executed 2026-11-15 by the owner (one install): Claude shows the connector as
+connected. The first attempt found a fault in the connector's own page, since fixed.
+The check of the Google account's third-party connections page was not reported.
 
 ## E. Prove what it can and cannot reach
 
