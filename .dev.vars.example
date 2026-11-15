@@ -1,0 +1,6 @@
+# Copy to .dev.vars for local development. .dev.vars is ignored by git.
+# Never put real values in this example file.
+GOOGLE_CLIENT_ID=YOUR_CLIENT_ID
+GOOGLE_CLIENT_SECRET=YOUR_CLIENT_SECRET
+# 32 random bytes, base64. One way to make one: openssl rand -base64 32
+TOKEN_ENCRYPTION_KEY=YOUR_BASE64_KEY
