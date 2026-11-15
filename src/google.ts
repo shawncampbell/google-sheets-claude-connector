@@ -89,6 +89,48 @@ export async function exchangePickCode(
   }
 }
 
+/**
+ * A sign-in that asks only who the person is. Used for the Worker's own pages, so that
+ * only the account this deployment serves can manage groups and keys.
+ */
+export function googleIdentityUrl(input: {
+  clientId: string;
+  redirectUri: string;
+  state: string;
+  codeChallenge: string;
+}): string {
+  const url = new URL(AUTH_URL);
+  url.searchParams.set("client_id", input.clientId);
+  url.searchParams.set("redirect_uri", input.redirectUri);
+  url.searchParams.set("response_type", "code");
+  url.searchParams.set("scope", "openid");
+  url.searchParams.set("state", input.state);
+  url.searchParams.set("code_challenge", input.codeChallenge);
+  url.searchParams.set("code_challenge_method", "S256");
+  url.searchParams.set("access_type", "online");
+  url.searchParams.set("prompt", "select_account");
+  return url.toString();
+}
+
+/** Returns Google's opaque id for whoever just signed in. No token is kept. */
+export async function exchangeIdentityCode(
+  fetcher: Fetcher,
+  input: { clientId: string; clientSecret: string; redirectUri: string; code: string; codeVerifier: string },
+): Promise<string> {
+  const json = await postToken(fetcher, {
+    grant_type: "authorization_code",
+    client_id: input.clientId,
+    client_secret: input.clientSecret,
+    redirect_uri: input.redirectUri,
+    code: input.code,
+    code_verifier: input.codeVerifier,
+  });
+  if (json.error || !json.id_token) {
+    throw new GoogleError("Google did not complete the sign-in. Please try again.", "unavailable");
+  }
+  return subjectFromIdToken(json.id_token, input.clientId);
+}
+
 export interface GoogleSignIn {
   sub: string;
   refreshToken: string;

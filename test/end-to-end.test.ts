@@ -94,6 +94,9 @@ describe("connecting and using the connector, end to end", () => {
       if (url === "https://sheets.googleapis.com/v4/spreadsheets") {
         return Response.json({ spreadsheetId: "new-sheet-id-0123456789", spreadsheetUrl: "https://example.com/sheet", properties: { title: "Reading log" } });
       }
+      if (url.startsWith("https://www.googleapis.com/drive/v3/files?")) {
+        return Response.json({ files: [...reachableSheets].map(([id, name]) => ({ id, name, modifiedTime: "2026-01-01T00:00:00Z" })) });
+      }
       const metadata = /^https:\/\/sheets\.googleapis\.com\/v4\/spreadsheets\/([^/?]+)\?fields=/.exec(url);
       if (metadata) {
         const id = decodeURIComponent(metadata[1]!);
@@ -148,6 +151,61 @@ describe("connecting and using the connector, end to end", () => {
     return { clientId, verifier, consent, consentHtml, toGoogle, googleUrl, back };
   }
 
+  const form = (jar: Map<string, string>, fields: Record<string, string>): RequestInit => ({
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded", Origin: ORIGIN, Cookie: cookieHeader(jar) },
+    body: new URLSearchParams(fields).toString(),
+  });
+
+  /** Signs a browser in to the Worker's own pages as whoever `googleSubject` is. */
+  async function ownerSession() {
+    const jar = new Map<string, string>();
+    const started = await send("/manage/sign-in", form(jar, { return: "/manage" }));
+    cookiesFrom(started, jar);
+    const googleUrl = new URL(started.headers.get("Location") ?? "https://missing.example");
+    const back = await send(`/callback?state=${encodeURIComponent(googleUrl.searchParams.get("state") ?? "")}&code=owner-code`, {
+      headers: { Cookie: cookieHeader(jar) },
+    });
+    cookiesFrom(back, jar);
+    return { jar, back, googleUrl };
+  }
+
+  /** Creates a group on the manage page and reads its key off the page that shows it once. */
+  async function makeGroup(jar: Map<string, string>, name: string) {
+    const page = await send("/manage/groups", form(jar, { name }));
+    const html = await page.text();
+    return { page, html, key: /sheets-key-[A-Za-z0-9_-]+/.exec(html)?.[0] ?? "" };
+  }
+
+  /** Gets a token as Claude would after the sign-in, and returns a way to call tools with it. */
+  async function claude() {
+    const { clientId, verifier, back } = await signIn();
+    const returned = new URL(back.headers.get("Location")!);
+    const token = await send("/oauth/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "authorization_code",
+        code: returned.searchParams.get("code")!,
+        client_id: clientId,
+        redirect_uri: CLAUDE_CALLBACK,
+        code_verifier: verifier,
+        resource: `${ORIGIN}/mcp`,
+      }).toString(),
+    });
+    const { access_token: accessToken } = (await token.json()) as { access_token: string };
+    let id = 0;
+    return async (name: string, args: Record<string, unknown>) => {
+      const response = await send("/mcp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json, text/event-stream", Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ jsonrpc: "2.0", id: ++id, method: "tools/call", params: { name, arguments: args } }),
+      });
+      const result = ((await response.json()) as { result: { content: Array<{ text: string }>; isError?: boolean } }).result;
+      return { isError: Boolean(result.isError), text: result.content[0]!.text };
+    };
+  }
+
   it("shows the delete limit before anything is sent to Google", async () => {
     const { consent, consentHtml } = await signIn();
     expect(consent.status).toBe(200);
@@ -200,10 +258,16 @@ describe("connecting and using the connector, end to end", () => {
     const tools = ((await listed.json()) as { result: { tools: Array<{ name: string }> } }).result.tools;
     expect(tools.map((t) => t.name).sort()).toEqual(["append_rows", "create_sheet", "list_sheets", "read_sheet", "write_range"]);
 
-    const created = await mcp({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "create_sheet", arguments: { title: "Reading log" } } });
+    const refused = await mcp({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "create_sheet", arguments: { title: "Reading log" } } });
+    const refusal = ((await refused.json()) as { result: { content: Array<{ text: string }>; isError?: boolean } }).result;
+    expect(refusal.isError).toBe(true);
+    expect(refusal.content[0]!.text).toContain("no valid project key");
+
+    const { key } = await makeGroup((await ownerSession()).jar, "Reading");
+    const created = await mcp({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "create_sheet", arguments: { project_key: key, title: "Reading log" } } });
     const result = ((await created.json()) as { result: { content: Array<{ text: string }>; isError?: boolean } }).result;
     expect(result.isError).toBeFalsy();
-    expect(JSON.parse(result.content[0]!.text).spreadsheetId).toBe("new-sheet-id-0123456789");
+    expect(JSON.parse(result.content[0]!.text)).toMatchObject({ spreadsheetId: "new-sheet-id-0123456789", group: "Reading" });
     expect(googleCalls.at(-1)).toMatchObject({ url: "https://sheets.googleapis.com/v4/spreadsheets", authorization: "Bearer google-access-token" });
   });
 
@@ -223,22 +287,99 @@ describe("connecting and using the connector, end to end", () => {
     expect(store.has("connector:refresh:google-user-2")).toBe(false);
   });
 
+  describe("groups and keys", () => {
+    it("asks for a sign-in before showing anything, and grants nothing new when signing in", async () => {
+      await signIn();
+      const page = await send("/manage");
+      expect(await page.text()).toContain("Sign in to manage this connector");
+      const { googleUrl, back } = await ownerSession();
+      expect(googleUrl.searchParams.get("scope")).toBe("openid");
+      expect(back.status).toBe(302);
+      expect(back.headers.get("Location")).toBe("/manage");
+    });
+
+    it("refuses the manage page to any Google account but the connected one", async () => {
+      await signIn();
+      googleSubject = "google-user-2";
+      const { back, jar } = await ownerSession();
+      expect(back.status).toBe(403);
+      expect(await (await send("/manage", { headers: { Cookie: cookieHeader(jar) } })).text()).toContain("Sign in to manage");
+    });
+
+    it("shows a new key once, with what it is and is not, and keeps only its fingerprint", async () => {
+      await signIn();
+      const { jar } = await ownerSession();
+      const { html, key } = await makeGroup(jar, "Reading");
+      expect(key).toMatch(/^sheets-key-/);
+      expect(html).toContain("It is shown once");
+      expect(html).toContain("not what keeps other people out");
+      expect(html).toContain("never save it to memory");
+      expect([...store.values()].join("\n")).not.toContain(key);
+      const manage = await (await send("/manage", { headers: { Cookie: cookieHeader(jar) } })).text();
+      expect(manage).toContain("Reading");
+      expect(manage).not.toContain(key);
+      expect(manage).toContain("not a limit Google enforces");
+      expect(manage).not.toContain("Google could not be reached");
+    });
+
+    it("keeps each key to its own group's sheets", async () => {
+      const call = await claude();
+      const { jar } = await ownerSession();
+      const a = await makeGroup(jar, "Project A");
+      const b = await makeGroup(jar, "Project B");
+      const made = JSON.parse((await call("create_sheet", { project_key: a.key, title: "A's log" })).text);
+      reachableSheets.set(made.spreadsheetId, "A's log");
+
+      expect((await call("read_sheet", { project_key: a.key, spreadsheet_id: made.spreadsheetId })).isError).toBe(false);
+      const fromB = await call("read_sheet", { project_key: b.key, spreadsheet_id: made.spreadsheetId });
+      expect(fromB.isError).toBe(true);
+      expect(fromB.text).toContain("cannot reach that sheet");
+      const noKey = await call("read_sheet", { spreadsheet_id: made.spreadsheetId });
+      expect(noKey.text).toContain("no valid project key");
+    });
+
+    it("cuts off the old key when a group's key is replaced", async () => {
+      const call = await claude();
+      const { jar } = await ownerSession();
+      const { key } = await makeGroup(jar, "Project A");
+      const groupId = /name="group" value="([^"]+)"/.exec(await (await send("/manage", { headers: { Cookie: cookieHeader(jar) } })).text())?.[1] ?? "";
+      const replaced = await (await send("/manage/key", form(jar, { group: groupId }))).text();
+      const newKey = /sheets-key-[A-Za-z0-9_-]+/.exec(replaced)?.[0] ?? "";
+      expect(newKey).not.toBe(key);
+      expect((await call("list_sheets", { project_key: key })).text).toContain("no valid project key");
+      expect((await call("list_sheets", { project_key: newKey })).isError).toBe(false);
+    });
+
+    it("refuses a change posted from another site, or without a session", async () => {
+      await signIn();
+      const { jar } = await ownerSession();
+      const foreign = await send("/manage/groups", { ...form(jar, { name: "x" }), headers: { "Content-Type": "application/x-www-form-urlencoded", Origin: "https://evil.example", Cookie: cookieHeader(jar) } });
+      expect(foreign.status).toBe(403);
+      expect((await send("/manage/groups", form(new Map(), { name: "x" }))).status).toBe(401);
+    });
+  });
+
   describe("handing over an existing sheet", () => {
-    /** Presses the button on the pick page and returns where Google was asked to send the browser. */
+    /** Signs in, makes a group, and presses the button on the pick page. */
     async function startPick() {
-      const jar = new Map<string, string>();
-      const started = await send("/pick", { method: "POST", headers: { Origin: ORIGIN, Cookie: "" }, body: "decision=pick" });
+      const call = await claude();
+      const { jar } = await ownerSession();
+      const { key } = await makeGroup(jar, "Budget project");
+      const page = await (await send("/pick", { headers: { Cookie: cookieHeader(jar) } })).text();
+      const groupId = /<option value="([^"]+)"/.exec(page)?.[1] ?? "";
+      const started = await send("/pick", form(jar, { group: groupId, decision: "pick" }));
       cookiesFrom(started, jar);
       const googleUrl = new URL(started.headers.get("Location") ?? "https://missing.example");
-      return { started, googleUrl, jar, state: googleUrl.searchParams.get("state") ?? "" };
+      return { call, key, page, started, googleUrl, jar, state: googleUrl.searchParams.get("state") ?? "" };
     }
     const comeBack = (state: string, jar: Map<string, string>, extra: string) =>
       send(`/callback?state=${encodeURIComponent(state)}&${extra}`, { headers: { Cookie: cookieHeader(jar) } });
 
-    it("states the delete limit on the pick page", async () => {
-      const page = await send("/pick");
-      expect(page.status).toBe(200);
-      expect(await page.text()).toContain("not a limit Google enforces");
+    it("asks for a sign-in first, then states the delete limit on the pick page", async () => {
+      expect(await (await send("/pick")).text()).toContain("Sign in to manage this connector");
+      const { page } = await startPick();
+      expect(page).toContain("not a limit Google enforces");
+      expect(page).toContain("Budget project");
     });
 
     it("sends the browser to Google's picker asking for per-file access alone", async () => {
@@ -251,53 +392,50 @@ describe("connecting and using the connector, end to end", () => {
       expect(googleUrl.searchParams.get("redirect_uri")).toBe(`${ORIGIN}/callback`);
     });
 
-    it("reports a picked sheet as added once the connected account can reach it", async () => {
-      await signIn();
-      const { state, jar } = await startPick();
+    it("adds a picked sheet to the chosen group, where that group's key can read it", async () => {
+      const { call, key, state, jar } = await startPick();
       reachableSheets.set("picked-sheet-id-0123456789", "Budget <2026>");
       const done = await comeBack(state, jar, "code=pick-code&picked_file_ids=picked-sheet-id-0123456789");
       expect(done.status).toBe(200);
       const html = await done.text();
       expect(html).toContain("Sheets added");
       expect(html).toContain("Budget &#60;2026&#62;");
+      expect(html).toContain("Budget project");
       expect(html).toContain("not a limit Google enforces");
+      expect((await call("read_sheet", { project_key: key, spreadsheet_id: "picked-sheet-id-0123456789" })).isError).toBe(false);
     });
 
     it("reports a sheet picked with a different Google account as not added", async () => {
-      await signIn();
-      const { state, jar } = await startPick();
+      const { call, key, state, jar } = await startPick();
       const done = await comeBack(state, jar, "code=pick-code&picked_file_ids=someone-elses-sheet-0123456789");
       const html = await done.text();
       expect(html).toContain("Nothing was added");
       expect(html).toContain("1 picked file was not added");
+      expect((await call("read_sheet", { project_key: key, spreadsheet_id: "someone-elses-sheet-0123456789" })).isError).toBe(true);
     });
 
-    it("keeps nothing from a pick: no new token and no list of sheets", async () => {
-      await signIn();
-      const before = [...store.keys()].sort();
+    it("keeps no Google token from a pick", async () => {
       const { state, jar } = await startPick();
       reachableSheets.set("picked-sheet-id-0123456789", "Budget");
+      const before = [...store.keys()].filter((k) => k.startsWith("connector:refresh") || k.startsWith("connector:access")).sort();
       await comeBack(state, jar, "code=pick-code&picked_file_ids=picked-sheet-id-0123456789");
-      expect([...store.keys()].sort()).toEqual(before);
+      const after = [...store.keys()].filter((k) => k.startsWith("connector:refresh") || k.startsWith("connector:access")).sort();
+      expect(after).toEqual(before);
     });
 
     it("refuses a pick that comes back to a different browser, or twice", async () => {
-      await signIn();
       const { state, jar } = await startPick();
       expect((await comeBack(state, new Map(), "code=pick-code")).status).toBe(400);
       expect((await comeBack(state, jar, "code=pick-code")).status).toBe(200);
       expect((await comeBack(state, jar, "code=pick-code")).status).toBe(400);
     });
 
-    it("refuses to start a pick from another site", async () => {
-      const response = await send("/pick", { method: "POST", headers: { Origin: "https://evil.example" }, body: "decision=pick" });
-      expect(response.status).toBe(403);
-    });
-
-    it("asks for the connector to be connected first when nobody has signed in", async () => {
-      const { state, jar } = await startPick();
-      const done = await comeBack(state, jar, "code=pick-code&picked_file_ids=picked-sheet-id-0123456789");
-      expect(done.status).toBe(409);
+    it("refuses to start a pick from another site, or without a session", async () => {
+      await signIn();
+      const { jar } = await ownerSession();
+      const foreign = await send("/pick", { method: "POST", headers: { Origin: "https://evil.example", Cookie: cookieHeader(jar) }, body: "decision=pick" });
+      expect(foreign.status).toBe(403);
+      expect((await send("/pick", form(new Map(), { group: "x" }))).status).toBe(401);
     });
   });
 

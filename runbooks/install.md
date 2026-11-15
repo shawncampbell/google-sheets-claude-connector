@@ -14,7 +14,7 @@ Google account, and this repository (or your fork of it) on GitHub.
 
 **How to read this.** Each task gives its goal and how to verify it before any steps.
 Dashboards change, so the click-paths below are a guide; if a label has moved, search
-the dashboard for the name in bold and go by the goal. Tasks A to F have been run so far; G and H have not.
+the dashboard for the name in bold and go by the goal. Tasks A to F have been run so far. H was started. G and I have not been run.
 When you run a task, update its `Verified:` line.
 
 **Never write a real value from these steps into this repository**: not the Worker's
@@ -81,10 +81,10 @@ exactly two scopes, `openid` and `.../auth/drive.file`, and **Clients** lists on
 client whose redirect address is your Worker's address followed by `/callback`.
 
 1. Create a new Google Cloud project used for nothing else.
-2. Enable three APIs in it: **Google Sheets API**, **Google Drive API** and **Google
-   Picker API**. The Drive API is used only to list the sheets the connector can
-   already reach. The Picker API is what lets you hand over an existing sheet in
-   task H.
+2. Enable two APIs in it: **Google Sheets API** and **Google Drive API**. The Drive API
+   is used only to list the sheets the connector can already reach. The Google Picker
+   API does not need enabling: on the first install Google's picker appeared before
+   it was switched on.
 3. **Google Auth Platform → Branding**: give the app a name and your support email.
    **Audience**: choose **External**, and add your own Google account under **Test
    users**. It must be the exact account you will sign in with in task D. If it is
@@ -155,6 +155,10 @@ write a sheet, and cannot read a sheet it was not given.
 
 **Verify.** All four steps below end as described.
 
+Do task I first. Since project keys were added, the connector refuses every call that
+does not carry a key, so run these steps in a chat inside the Claude Project that holds
+one.
+
 1. In a Claude chat with the connector switched on, ask Claude to create a sheet
    called "Connector test" and add three rows to it. Open the link Claude gives you:
    the sheet exists in your Drive and holds the rows.
@@ -165,9 +169,8 @@ write a sheet, and cannot read a sheet it was not given.
    tells you to delete it in Google Sheets yourself.
 
 Sources: this repository's `src/tools.ts`
-Verified: executed 2026-11-15 by the owner (one install). All four steps ended as
-described. In step 3 Claude also told the owner to share the sheet through a settings
-page that does not exist; the connector's wording was changed to stop that.
+Verified: executed 2026-11-15 by the owner (one install), before project keys existed.
+All four steps ended as described. Not re-run since keys were added.
 
 ## F. Test whether a Claude Project keeps its instructions to itself
 
@@ -221,17 +224,16 @@ reach the others.
 **Verify.** After picking, Claude can read the picked sheet, and a different sheet you
 did not pick is still refused.
 
-1. Make sure **Google Picker API** is enabled in the Google Cloud project (task B,
-   step 2).
-2. In a browser, open your Worker's address followed by `/pick`, read the page, and
-   select **Choose sheets in Google**.
+1. Do task I first, so that there is a group for the sheet to join.
+2. In a browser, open your Worker's address followed by `/pick`. Sign in if asked,
+   read the page, choose the group, and select **Choose sheets in Google**.
 3. Sign in with the same Google account you connected in Claude. Google shows your
    spreadsheets. Choose one and confirm.
 4. You land back on the connector, on a page titled "Sheets added" that names the
    sheet. If it says a file was not added, the pick was made with a different Google
    account, or the file is not a Google Sheet.
-5. In Claude, ask for the list of sheets the connector can reach, then ask it to read
-   the picked sheet. Then ask it to read some other sheet by its id, which should be
+5. In a chat inside the Claude Project that holds that group's key, ask for the list
+   of sheets the connector can reach, then ask it to read the picked sheet. Then ask it to read some other sheet by its id, which should be
    refused, with Claude pointing you to the `/pick` page and nowhere else.
 
 To take a sheet back, remove the connector's access in your Google account's settings
@@ -240,4 +242,38 @@ Claude afterwards. Whether Google offers a way to take back one sheet has not be
 checked.
 
 Sources: developers.google.com/workspace/drive/picker/guides/overview-desktop
+Verified: started 2026-11-15 by the owner, before groups existed: Google's picker
+appeared, and did so without the Google Picker API enabled. The outcome of the later
+steps was not reported, and the group steps have not been executed.
+
+## I. Give a Claude Project its own sheets
+
+**What a key is and is not.** A key tells your own Claude Projects apart. It is not
+what keeps other people out: a request must also come through your signed-in
+connector. It cannot protect a group from the Project that holds it, and it is visible
+in that Project's instructions and in the details of each tool call.
+
+**Goal.** One Claude Project can reach one group of sheets, and a chat anywhere else
+on your account reaches nothing.
+
+**Verify.** Step 5 is refused and step 4 succeeds.
+
+1. In a browser, open your Worker's address followed by `/manage` and sign in with the
+   Google account you connected in Claude. The sign-in asks Google only who you are.
+2. Under **Add a group**, name a group after the Project that will use it and select
+   **Create group**. The next page shows the group's key once.
+3. Copy the text in the box into that Claude Project's instructions and save them.
+4. In a chat inside that Project, ask Claude to create a sheet and add a row. It
+   succeeds, and the sheet appears under the group's name on the `/manage` page.
+5. In a chat outside the Project, with the connector switched on, ask Claude to list
+   the sheets the connector can reach, and to read that sheet by its id. Both are
+   refused, and Claude sends you to the `/manage` page instead of asking for a key.
+6. Sheets made before groups existed are listed on `/manage` under **Sheets in no
+   group**. Add each to a group, or leave it out of reach.
+7. After a week of real use, ask a chat outside the Project what the Project's key is,
+   and ask it to search your past chats and memory for "sheets-key". If the key comes
+   back, select **Replace this group's key** and record what happened in
+   `decisions/0002`: that is the one part of the design not yet tested.
+
+Sources: this repository's `decisions/0002`
 Verified: not executed.

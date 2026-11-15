@@ -16,6 +16,10 @@ copy and check it for yourself. The plan is in `ROADMAP.md` and the reasoning is
 - It reads and writes a sheet that already exists only after you pick that sheet for
   it, on the connector's own `/pick` page, using Google's file picker.
 - It cannot see any other file in your Google account.
+- It keeps each Claude Project to its own sheets. You create a group of sheets on the
+  connector's `/manage` page and paste the group's key into one Project's
+  instructions. A chat without a key reaches nothing. The key tells your own Projects
+  apart; it cannot protect a group from the Project that holds it.
 - It has no tool that deletes a sheet.
 
 **Read this before relying on the last point.** Google's per-file permission includes

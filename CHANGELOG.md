@@ -23,7 +23,18 @@ All notable changes to this project are recorded here. The format follows
   can read and write them from then on. Claude is told where the page is. Not yet run
   against a real account.
 
+- Project keys. Sheets are kept in groups, each with a key, managed on the connector's
+  `/manage` page. Every tool call must carry a key and reaches only that key's group,
+  so a sheet given to one Claude Project stays out of reach of other chats. Not yet
+  run against a real account.
+
 ### Changed
+
+- Every tool now refuses a call that carries no project key. After upgrading, create a
+  group on `/manage` and paste its key into a Claude Project before using the
+  connector. Sheets made earlier appear there under "Sheets in no group".
+- Handing over an existing sheet on `/pick` now needs a sign-in and a group to add the
+  sheet to.
 
 ### Fixed
 

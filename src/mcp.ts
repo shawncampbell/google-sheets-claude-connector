@@ -1,6 +1,7 @@
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import type { AppEnv, AuthProps } from "./env";
 import { createSheetsApi, type Fetcher } from "./google";
+import { assignSheet, groupForKey, groupOfSheet, sheetsInGroup } from "./groups";
 import { getGoogleAccessToken } from "./store";
 import { buildServer } from "./tools";
 
@@ -18,7 +19,12 @@ export const mcpHandler = {
       return new Response("This connection has no signed-in Google account.", { status: 401 });
     }
     const api = createSheetsApi(googleFetch, () => getGoogleAccessToken(env, sub, googleFetch));
-    const server = buildServer(api, new URL(request.url).origin);
+    const server = buildServer(api, new URL(request.url).origin, {
+      groupForKey: (key) => groupForKey(env, key),
+      groupOfSheet: (sheetId) => groupOfSheet(env, sheetId),
+      assignSheet: (sheetId, groupId) => assignSheet(env, sheetId, groupId),
+      sheetsInGroup: (groupId) => sheetsInGroup(env, groupId),
+    });
     const transport = new WebStandardStreamableHTTPServerTransport({
       sessionIdGenerator: undefined,
       enableJsonResponse: true,

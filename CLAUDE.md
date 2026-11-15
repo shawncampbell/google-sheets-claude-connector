@@ -34,9 +34,18 @@ connector has no delete tool, so Claude cannot ask for a deletion, but that is a
 promise kept by this server's code and not a limit Google enforces. Say so, in plain
 words, in each of these places, and keep them in step when one changes: the README,
 `SECURITY.md`, the install runbook, the page a person sees before granting access, the
-page where they pick a sheet, and the description of each tool that writes. A PR that
+page where they pick a sheet, the page where they manage groups, and the description
+of each tool that writes. A PR that
 adds a new place where a person or a model decides to trust the connector adds the
 statement there too.
+
+## A project key must be described as what it is
+
+A project key tells the owner's own Claude Projects apart (`decisions/0002`). It is not
+what keeps other people out, and it cannot protect a group from the Project that holds
+it. Wherever a key is shown or explained, say so, and never describe a key as a
+password or as security against outsiders. Never write a real key anywhere in this
+repository; examples use an obvious placeholder.
 
 ## Conventions every project repo carries
 
